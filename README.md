@@ -42,17 +42,58 @@ The plugin sends a small, purpose-built Python snippet per operation to the brid
 a structured result. The agent never sees or writes Python — it calls typed methods and gets
 plain-text results (or a deterministic `Error: …` string).
 
-### Setup: install FreeCAD and start the bridge
+### What you need to install
 
-1. **Install FreeCAD** (1.1.x recommended; 0.20.x also supported) from
+You install three things. The tool does everything else by itself — you never start FreeCAD,
+start a bridge, or install an add-on by hand.
+
+1. **FreeCAD** — the CAD engine the tool drives. Install 1.1.x (recommended) or 0.20.x from
    <https://www.freecad.org/downloads>. On Linux: `sudo apt install freecad`.
-2. **Start the bridge** so the tool has something to talk to:
-   - **Headless (automation):** `freecadcmd bridge_headless.py` — no GUI needed; runs the full
-     modeling surface.
-   - **GUI (screenshots / view control):** `freecad startup_bridge.py` — starts the bridge
-     inside the FreeCAD GUI so `view` operations work too.
-3. The plugin connects to `FREECAD_HOST`:`FREECAD_PORT` (defaults `127.0.0.1:9876`). Call
-   `status()` first to confirm the connection, the FreeCAD version, and whether the GUI is up.
+2. **AgentBridge** (or AIOffice) — the host that runs the agent. FreeCADTool is a plugin for it
+   and cannot run on its own.
+3. **FreeCADTool** — this plugin. Install it through the host's plugin manager, or unpack the
+   release zip into the host's `Tools/FreeCADTool/` folder.
+
+### What the tool sets up automatically
+
+- **The bridge starts itself.** The first time the agent uses FreeCADTool and nothing is listening
+  on the bridge port, the tool finds your FreeCAD install and launches a **headless FreeCAD**
+  with the bundled bridge in the background. The first call may pause a few seconds while it comes
+  up; later calls reuse it. The bridge launcher ships inside the plugin, so there is nothing to
+  copy or configure.
+- **FCGear installs itself.** The first time the agent asks for a real gear, the tool downloads
+  the [FCGear](https://github.com/looooo/freecad.gears) add-on into your FreeCAD `Mod` folder in
+  the background and uses it — no restart, no Addon Manager. You get a desktop notification when
+  it is ready.
+- **You are told what is happening, in your language.** Setup progress and any problem appear as
+  a normal desktop notification, in your operating system's language (English, Italian, French,
+  Spanish, German, Russian; English for any other language).
+
+### If FreeCAD is not found
+
+If the tool cannot find FreeCAD, a notification asks you to install it. You can also point the
+tool at a specific install with environment variables (advanced — most users never need these):
+
+| Variable | Meaning |
+|---|---|
+| `FREECAD_CMD` | Full path to the `freecadcmd` executable. Used as-is. |
+| `FREECAD_HOME` | FreeCAD install folder. The tool looks for `freecadcmd` in it and in its `bin/`. |
+| `FREECAD_HOST` | Bridge host (default `127.0.0.1`). |
+| `FREECAD_PORT` | Bridge port (default `9876`). |
+| `FREECAD_DISABLE_AUTOINSTALL=1` | Never auto-download FCGear (for locked-down or offline setups). |
+
+With none of these set, the tool scans the usual install locations on Windows, Linux and macOS.
+
+### Starting the bridge yourself (optional)
+
+You can start the bridge yourself instead of letting the tool do it — useful when you want the
+GUI (for screenshots and view control) or a specific FreeCAD build:
+
+- **Headless:** `freecadcmd bridge_headless.py` — full modeling surface, no GUI.
+- **GUI:** `freecad startup_bridge.py` — the bridge inside the FreeCAD GUI, so `view` works too.
+
+The tool connects to whatever is already listening on the port, so a bridge you started yourself
+is used instead of launching a new one.
 
 ## Agent methods
 
@@ -80,7 +121,7 @@ before the method runs.
 | `feature(action, sketch, body, properties, docName)` | `Pad` \| `Pocket` \| `Revolve` \| `Groove` \| `Hole` \| `Loft` \| `Sweep` from a sketch. |
 | `pattern(action, feature, body, properties, docName)` | `Linear` \| `Polar` \| `Mirror` pattern of a feature. |
 | `edge_op(operation, baseObject, edges, size, docName)` | `Fillet` \| `Chamfer` edges of a solid. |
-| `create_gear(properties, name, docName)` | Parametric involute gear (spur/helical) via the FCGear workbench — needs that add-on installed; clear error otherwise. |
+| `create_gear(properties, name, docName)` | Parametric involute gear (spur/helical) via the FCGear workbench — the add-on installs itself on first use. |
 | `view(action, path, properties, docName)` | `Screenshot` \| `Angle` \| `Fit` \| `Zoom` \| `Visibility` \| `DisplayMode` \| `Color` (needs the GUI). |
 
 Typical agent flow:
@@ -115,9 +156,12 @@ workbench call-through: `create_gear(properties)` drives the
 a *call-through*, not a bundle: the plugin ships **zero** FCGear code — it sends a snippet that
 calls the workbench already installed in the user's FreeCAD, so FCGear's GPL-3.0 license never
 enters the plugin's distribution. FCGear's headless path is proven by its own CI, and the gear
-build is verified here on FreeCAD 1.1.x and 0.20.x. If the add-on is not installed the method
-returns a clear `Error:` (install it from the FreeCAD Addon Manager, or fall back to the
-primitive + `Polar` pattern above).
+build is verified here on FreeCAD 1.1.x and 0.20.x. If the add-on is not yet installed, the tool
+installs it automatically in the background the first time you ask for a gear (see *What the tool
+sets up automatically*) and notifies you when it is ready; the next gear request then builds
+normally. Set `FREECAD_DISABLE_AUTOINSTALL=1` to stop the tool from downloading it — in that case
+the method returns a clear `Error:` and you can install FCGear yourself from the FreeCAD Addon
+Manager, or fall back to the primitive + `Polar` pattern above.
 
 **Why the other part workbenches are not wrapped.** The Fasteners workbench
 (`FreeCAD_FastenersWB`) and BOLTS / BOLTSFC are excellent but a poor fit as core methods: the
@@ -153,6 +197,18 @@ headless.
   agent-oriented XML docs, `Log.LogStep` tracing, sandbox path handling, version-before-write.
 - Deterministic `Error: cause — detail` strings on every failure path instead of raw exceptions.
 - Scope is the CAD core. Draft and Spreadsheet are intentionally out of scope.
+
+## Troubleshooting
+
+| Symptom | What it means / what to do |
+|---|---|
+| Notification: "FreeCAD … was not found" | FreeCAD is not installed, or not where the tool looks. Install it from <https://www.freecad.org/downloads>, or set `FREECAD_CMD` / `FREECAD_HOME` to your install. |
+| Notification: "Could not start FreeCAD automatically" | FreeCAD is installed but the headless bridge did not come up. Open FreeCAD once (to finish first-run setup), or start the bridge yourself with `freecadcmd bridge_headless.py`. |
+| First `status()` / call is slow | Normal — the tool is starting a headless FreeCAD in the background. Later calls are fast. |
+| `create_gear` says it is "installing FCGear" | Normal on the first gear request. Wait for the "FCGear installed" notification, then ask again. |
+| `undo` / `redo` returns a GUI error | Expected in headless mode — FreeCAD's undo stack needs the GUI. Run the bridge with `freecad startup_bridge.py` if you need undo/redo. |
+| `view` screenshot fails | `view` needs the GUI. Start the bridge with `freecad startup_bridge.py`. |
+| Port already in use / wrong instance | Point the tool elsewhere with `FREECAD_HOST` / `FREECAD_PORT`, or stop the other bridge. |
 
 ## Development
 
