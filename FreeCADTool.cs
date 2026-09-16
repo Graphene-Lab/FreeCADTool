@@ -34,13 +34,13 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
     private ExecResult? EnsureBridge()
     {
         if (_bridgeReady) return null;
-        if (FreeCADBootstrap.IsBridgeUp(_bridge.Host, _bridge.Port)) { _bridgeReady = true; return null; }
+        if (FreeCADBootstrap.IsBridgeUp(_bridge.Host, _bridge.Port)) { _bridgeReady = true; EnsureChatMod(); return null; }
 
         // Nothing is listening — start FreeCAD ourselves. Tell the user why the first
         // call may pause (no-op on headless systems with no desktop notifier).
         SystemNotifier.Notify("FreeCADTool", FreeCADStrings.Body("BridgeStarting"));
         var reason = FreeCADBootstrap.EnsureBridge(_bridge.Host, _bridge.Port);
-        if (reason == null) { _bridgeReady = true; return null; }
+        if (reason == null) { _bridgeReady = true; EnsureChatMod(); return null; }
 
         var msg = reason == "freecad_not_found"
             ? FreeCADStrings.Body("FreecadNotFound")

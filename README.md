@@ -65,6 +65,10 @@ start a bridge, or install an add-on by hand.
   the [FCGear](https://github.com/looooo/freecad.gears) add-on into your FreeCAD `Mod` folder in
   the background and uses it — no restart, no Addon Manager. You get a desktop notification when
   it is ready.
+- **A chat panel installs itself inside FreeCAD.** The first time the tool runs, it also drops a
+  small **AgentBridge Chat** workbench into your FreeCAD `Mod` folder. The next time you open the
+  FreeCAD GUI, a chat dock appears on its own — no clicks, no workbench to pick — and you can talk
+  to the agent from inside FreeCAD (see [Chat inside FreeCAD](#chat-inside-freecad)).
 - **You are told what is happening, in your language.** Setup progress and any problem appear as
   a normal desktop notification, in your operating system's language (English, Italian, French,
   Spanish, German, Russian; English for any other language).
@@ -94,6 +98,48 @@ GUI (for screenshots and view control) or a specific FreeCAD build:
 
 The tool connects to whatever is already listening on the port, so a bridge you started yourself
 is used instead of launching a new one.
+
+## Chat inside FreeCAD
+
+Alongside the agent methods, the plugin installs a small **chat workbench** that puts a chat panel
+directly inside the FreeCAD window. You type a prompt in FreeCAD, the local **AgentBridge** agent
+runs it, and the result — including any CAD edits — shows up in the very FreeCAD you are looking
+at.
+
+```
+FreeCAD GUI + AgentBridge Chat dock  ──HTTP (SSE)──▶  AgentBridge  ──agent──▶  FreeCADTool
+        ▲                                                   │                    │
+        └──────────── the same FreeCAD instance ◀── MCP bridge started in the GUI ┘
+```
+
+- **Same-instance driving.** When the chat opens it starts the MCP bridge *inside the visible GUI
+  FreeCAD* (not a separate headless one), so when the agent calls `FreeCADTool`, the geometry you
+  see on screen is what changes. If a bridge is already running in that instance, the workbench
+  reuses it instead of starting a second one.
+- **Zero clicks, all OSes.** The workbench's `InitGui.py` is imported when the FreeCAD GUI starts;
+  it polls for the GUI to be ready and drops the dock into the main window by itself — no workbench
+  to select, no menu to open. It uses Qt through a small import shim that works on FreeCAD 1.x
+  (PySide6) and 0.20.x (PySide2) alike, on Windows, Linux and macOS.
+- **Reopen any time.** If you close the dock, open it again from the **AgentBridge → Open AgentBridge
+  Chat** menu (or the *AgentBridge Chat* workbench).
+- **What the agent can do from the chat.** By default the chat runs the agent with `FileTool`,
+  `GitTool` and `FreeCADTool`, so it can read/write files, manage git, and model CAD. The agent
+  streams its reply token-by-token over Server-Sent Events, and the conversation keeps its context
+  across turns via the AgentBridge `session_id`.
+- **Requirements.** AgentBridge (or any host exposing the same OpenAI-compatible endpoint) must be
+  running on the machine. The chat talks to it over `http://localhost:5290/v1/chat/completions`.
+- **Overridable** with environment variables (advanced):
+
+  | Variable | Meaning |
+  |---|---|
+  | `AGENTBRIDGE_URL` | Full chat endpoint (default `http://localhost:5290/v1/chat/completions`). |
+  | `AGENTBRIDGE_CHAT_TOOLS` | Comma-separated tool names for the chat agent (default `FileTool,GitTool,FreeCADTool`). |
+
+> **Ordering note.** For the agent to edit the window you see, the FreeCAD GUI (and its chat
+> bridge) must be up before the agent's first `FreeCADTool` call. This is the natural case when you
+> are chatting from inside FreeCAD. If the agent started a *headless* FreeCAD first (it grabs the
+> bridge port), the GUI bridge cannot bind the same port — close the headless instance or point the
+> chat at a different `FREECAD_PORT` if you hit this.
 
 ## Agent methods
 

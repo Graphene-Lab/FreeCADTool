@@ -65,6 +65,13 @@
     <None Include="bridge\**\*" Exclude="bridge\**\__pycache__\**" Pack="True" PackagePath="lib/net10.0/bridge" />
   </ItemGroup>
 
+  <!-- Ship the AgentBridge chat workbench payload. FreeCADTool.InstallChatMod copies
+       this (plus the bridge package above) into the user's FreeCAD Mod dir so the
+       chat dock auto-appears in the FreeCAD GUI. __pycache__ excluded. -->
+  <ItemGroup>
+    <None Include="AgentBridgeChat\**\*" Exclude="AgentBridgeChat\**\__pycache__\**" Pack="True" PackagePath="lib/net10.0/chat_mod" />
+  </ItemGroup>
+
   <Target Name="SetPackageVersion" DependsOnTargets="Build">
     <PropertyGroup>
       <PackageVersion>$(Version)</PackageVersion>

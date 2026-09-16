@@ -95,5 +95,14 @@ internal static class FreeCADStrings
             ["de"] = "FCGear konnte nicht automatisch installiert werden. Um Zahnräder zu erstellen, installieren Sie FCGear über den FreeCAD Addon Manager.",
             ["ru"] = "Не удалось автоматически установить FCGear. Чтобы создавать шестерни, установите FCGear через FreeCAD Addon Manager.",
         },
+        ["ChatReady"] = new()
+        {
+            ["en"] = "AgentBridge chat installed in FreeCAD. Open (or restart) FreeCAD to chat with the assistant from inside it.",
+            ["it"] = "Chat di AgentBridge installata in FreeCAD. Apri (o riavvia) FreeCAD per chattare con l'assistente da dentro.",
+            ["fr"] = "Chat AgentBridge installé dans FreeCAD. Ouvrez (ou redémarrez) FreeCAD pour discuter avec l'assistant depuis l'intérieur.",
+            ["es"] = "Chat de AgentBridge instalado en FreeCAD. Abre (o reinicia) FreeCAD para chatear con el asistente desde dentro.",
+            ["de"] = "AgentBridge-Chat in FreeCAD installiert. Öffnen (oder neu starten) Sie FreeCAD, um darin mit dem Assistenten zu chatten.",
+            ["ru"] = "Чат AgentBridge установлен в FreeCAD. Откройте (или перезапустите) FreeCAD, чтобы общаться с помощником прямо из него.",
+        },
     };
 }
