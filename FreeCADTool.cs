@@ -392,6 +392,46 @@ _result_ = {{'name': o.Name, 'valid': res.isValid(), 'volume': res.Volume}}";
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // Standard parts (workbench call-through)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>Create a parametric involute gear (spur or helical) through the FCGear workbench. Needs the FCGear add-on installed in FreeCAD (Addon Manager); if it is absent the method returns a clear error — build a simple toothed wheel with create_primitive + a Polar pattern instead. properties: {"teeth"(int,default 15),"module"(mm,default 1),"height"(mm,default 5),"pressure_angle"(deg,default 20),"helix_angle"(deg,default 0),"shift"(float,default 0),"axle_hole"(bool),"axle_holesize"(mm,default 10)}.</summary>
+    /// <param name="properties">Gear parameters JSON; all optional, FCGear defaults apply when omitted.</param>
+    /// <param name="name">Label for the gear object; the created object Name is returned regardless.</param>
+    /// <param name="docName">Document name; omit for the active document.</param>
+    /// <returns>The gear object name with validity and volume, or "Error:".</returns>
+    public string CreateGear(string? properties = null, string? name = null, string? docName = null)
+    {
+        Log.LogStep($"FreeCADTool.CreateGear: {properties}");
+        var code = $@"import json
+doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
+if doc is None: raise ValueError('no document')
+try:
+    import freecad.gears.commands as _gcmd
+except Exception:
+    raise RuntimeError('FCGear workbench (freecad.gears) is not installed. Install it from the FreeCAD Addon Manager, or build a gear with create_primitive + a Polar pattern.')
+FreeCAD.setActiveDocument(doc.Name)
+p = {PyJson(properties)}
+obj = _gcmd.CreateInvoluteGear.create()
+if {Py(name)}: obj.Label = {Py(name)}
+if 'teeth' in p: obj.num_teeth = int(p['teeth'])
+if 'module' in p: obj.module = float(p['module'])
+if 'height' in p: obj.height = float(p['height'])
+if 'pressure_angle' in p: obj.pressure_angle = float(p['pressure_angle'])
+if 'helix_angle' in p: obj.helix_angle = float(p['helix_angle'])
+if 'shift' in p: obj.shift = float(p['shift'])
+if 'axle_hole' in p: obj.axle_hole = bool(p['axle_hole'])
+if 'axle_holesize' in p: obj.axle_holesize = float(p['axle_holesize'])
+doc.recompute()
+sh = getattr(obj, 'Shape', None)
+_ok = sh is not None and not sh.isNull()
+_result_ = {{'name': obj.Name, 'label': obj.Label, 'valid': bool(sh.isValid()) if _ok else False, 'volume': float(sh.Volume) if _ok else 0.0}}";
+        var r = Run(code);
+        if (!r.Success) return Err(r, "create_gear")!;
+        return $"Created gear '{Field(r, "name")}' (valid={Field(r, "valid")}, volume={Field(r, "volume")}).";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // Export / import
     // ─────────────────────────────────────────────────────────────────────
 

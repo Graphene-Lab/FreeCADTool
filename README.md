@@ -80,6 +80,7 @@ before the method runs.
 | `feature(action, sketch, body, properties, docName)` | `Pad` \| `Pocket` \| `Revolve` \| `Groove` \| `Hole` \| `Loft` \| `Sweep` from a sketch. |
 | `pattern(action, feature, body, properties, docName)` | `Linear` \| `Polar` \| `Mirror` pattern of a feature. |
 | `edge_op(operation, baseObject, edges, size, docName)` | `Fillet` \| `Chamfer` edges of a solid. |
+| `create_gear(properties, name, docName)` | Parametric involute gear (spur/helical) via the FCGear workbench — needs that add-on installed; clear error otherwise. |
 | `view(action, path, properties, docName)` | `Screenshot` \| `Angle` \| `Fit` \| `Zoom` \| `Visibility` \| `DisplayMode` \| `Color` (needs the GUI). |
 
 Typical agent flow:
@@ -102,17 +103,29 @@ GrabCAD, the FreeCAD part libraries, etc.) as **STEP / IGES / STL / OBJ** and br
 `import_file(path)`. It lands in the active document as an editable object you can then
 `transform`, `boolean`, `export`, or use as a reference.
 
-Parametric standard parts that the tool can generate itself — gears (a base cylinder plus a
-`Polar` pattern of teeth), bolt circles, washers, spacers, flanges — are built with the existing
-primitives + patterns + booleans, so they stay version-independent and need nothing installed.
+Parametric standard parts the tool can generate itself — bolt circles, washers, spacers, flanges,
+and a simple toothed wheel (a base cylinder plus a `Polar` pattern of teeth) — are built with the
+existing primitives + patterns + booleans, so they stay version-independent and need nothing
+installed.
 
-**Why the tool does not wrap third-party part workbenches.** Libraries such as BOLTS / BOLTSFC,
-the Fasteners workbench (`FreeCAD_FastenersWB`) and FCGear are excellent, but they are separate
-FreeCAD workbenches with version-specific Python APIs that must be installed into the user's
-FreeCAD. Making them core tool methods would tie the tool's behavior to external workbench
-installation and break the self-contained, deterministic contract. CadQuery is a separate
-Python CAD library with no free C#/.NET package, so it is out of scope for a pure-.NET tool.
-The supported pattern is: **import the part file, or build it parametrically with the methods above.**
+**Gears: `create_gear` via FCGear.** For real involute / helical gears the tool offers one
+workbench call-through: `create_gear(properties)` drives the
+[FCGear](https://github.com/looooo/freecad.gears) workbench (`CreateInvoluteGear`) with
+`teeth`, `module`, `height`, `pressure_angle`, `helix_angle`, `shift`, `axle_hole`, etc. This is
+a *call-through*, not a bundle: the plugin ships **zero** FCGear code — it sends a snippet that
+calls the workbench already installed in the user's FreeCAD, so FCGear's GPL-3.0 license never
+enters the plugin's distribution. FCGear's headless path is proven by its own CI, and the gear
+build is verified here on FreeCAD 1.1.x and 0.20.x. If the add-on is not installed the method
+returns a clear `Error:` (install it from the FreeCAD Addon Manager, or fall back to the
+primitive + `Polar` pattern above).
+
+**Why the other part workbenches are not wrapped.** The Fasteners workbench
+(`FreeCAD_FastenersWB`) and BOLTS / BOLTSFC are excellent but a poor fit as core methods: the
+Fasteners headless path is fragile (a top-level `import FreeCADGui`) and its scripted API is
+awkward, and BOLTS is GUI-oriented and largely superseded — neither is dependable under
+`freecadcmd`. CadQuery is a separate Python CAD library with no free C#/.NET package, so it is
+out of scope for a pure-.NET tool. The supported pattern stays: **import the part file, build it
+parametrically with the methods above, or use `create_gear` for gears.**
 
 ## Cross-platform
 

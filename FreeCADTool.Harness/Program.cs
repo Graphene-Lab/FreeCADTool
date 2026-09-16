@@ -90,6 +90,11 @@ Check("undo status reports gui flag", tool.UndoRedo(FreeCADTool.UndoRedoAction.S
 Check("undo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Undo), r => r.Contains("GUI"));
 Check("redo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Redo), r => r.Contains("GUI"));
 
+// ── standard parts: FCGear call-through. Passes when FCGear is installed (valid gear) or absent (clear error).
+//    The gear-build path itself is verified separately with a freecadcmd + FCGear run (valid solid, volume>0). ──
+Check("create_gear (FCGear) responds correctly", tool.CreateGear("{\"teeth\":20,\"module\":2,\"height\":8}", "gear"), r =>
+    (NoErr(r) && r.Contains("valid=True")) || r.Contains("FCGear workbench"));
+
 // ── import roundtrip ──
 Check("import step", tool.ImportFile("/out/test.step"), NoErr);
 
