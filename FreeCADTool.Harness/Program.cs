@@ -3,6 +3,8 @@ using AIOrchestrator;
 using AIOrchestrator.API;
 
 // End-to-end harness for FreeCADTool against a live headless FreeCAD bridge (127.0.0.1:9876).
+// Do not let create_gear trigger a real FCGear download / Mod-dir write during the test run.
+Environment.SetEnvironmentVariable("FREECAD_DISABLE_AUTOINSTALL", "1");
 var ws = Path.Combine(Path.GetTempPath(), "freectool_ws_" + Guid.NewGuid().ToString("N")[..8]);
 Directory.CreateDirectory(ws);
 Setup.DocumentsPath = ws;
@@ -90,10 +92,11 @@ Check("undo status reports gui flag", tool.UndoRedo(FreeCADTool.UndoRedoAction.S
 Check("undo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Undo), r => r.Contains("GUI"));
 Check("redo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Redo), r => r.Contains("GUI"));
 
-// ── standard parts: FCGear call-through. Passes when FCGear is installed (valid gear) or absent (clear error).
-//    The gear-build path itself is verified separately with a freecadcmd + FCGear run (valid solid, volume>0). ──
+// ── standard parts: FCGear call-through. Passes when FCGear is installed (valid gear) or
+//    absent (the "installing" notice; auto-install is disabled in the harness so no real download).
+//    The gear-build path itself is verified separately with a freecadcmd + FCGear run. ──
 Check("create_gear (FCGear) responds correctly", tool.CreateGear("{\"teeth\":20,\"module\":2,\"height\":8}", "gear"), r =>
-    (NoErr(r) && r.Contains("valid=True")) || r.Contains("FCGear workbench"));
+    (NoErr(r) && r.Contains("valid=True")) || r.Contains("FCGear"));
 
 // ── import roundtrip ──
 Check("import step", tool.ImportFile("/out/test.step"), NoErr);

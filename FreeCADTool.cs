@@ -13,12 +13,40 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
 {
     private readonly FreecadBridge _bridge = new();
 
-    /// <summary>Send Python to FreeCAD and return the raw result.</summary>
+    // Cached once the bridge is confirmed reachable, so we don't TCP-probe on every call.
+    private static bool _bridgeReady;
+
+    /// <summary>Send Python to FreeCAD and return the raw result. Ensures a headless
+    /// FreeCAD + bridge is running first, starting one automatically if needed.</summary>
     private ExecResult Run(string code, int? timeoutMs = null)
     {
+        var boot = EnsureBridge();
+        if (boot != null) return boot.Value;
         var r = _bridge.Execute(code, timeoutMs);
+        if (!r.Success && r.ErrorType == "ConnectionError") _bridgeReady = false;
         Log.LogStep($"FreeCADTool.run: {(r.Success ? "ok" : "FAILED — " + (r.ErrorType ?? r.Stderr ?? "error"))}");
         return r;
+    }
+
+    /// <summary>Ensure the FreeCAD bridge is reachable, auto-starting a headless
+    /// FreeCAD if it is not. Returns null when ready, or a failed <see cref="ExecResult"/>
+    /// carrying a localized message (and shows a desktop notification) when setup fails.</summary>
+    private ExecResult? EnsureBridge()
+    {
+        if (_bridgeReady) return null;
+        if (FreeCADBootstrap.IsBridgeUp(_bridge.Host, _bridge.Port)) { _bridgeReady = true; return null; }
+
+        // Nothing is listening — start FreeCAD ourselves. Tell the user why the first
+        // call may pause (no-op on headless systems with no desktop notifier).
+        SystemNotifier.Notify("FreeCADTool", FreeCADStrings.Body("BridgeStarting"));
+        var reason = FreeCADBootstrap.EnsureBridge(_bridge.Host, _bridge.Port);
+        if (reason == null) { _bridgeReady = true; return null; }
+
+        var msg = reason == "freecad_not_found"
+            ? FreeCADStrings.Body("FreecadNotFound")
+            : FreeCADStrings.Body("BridgeFailed");
+        SystemNotifier.Notify("FreeCADTool", msg);
+        return new ExecResult(false, null, "", msg, "BootstrapError", null);
     }
 
     /// <summary>Build a failure message from a failed ExecResult, or null when it succeeded.</summary>
@@ -395,21 +423,46 @@ _result_ = {{'name': o.Name, 'valid': res.isValid(), 'volume': res.Volume}}";
     // Standard parts (workbench call-through)
     // ─────────────────────────────────────────────────────────────────────
 
-    /// <summary>Create a parametric involute gear (spur or helical) through the FCGear workbench. Needs the FCGear add-on installed in FreeCAD (Addon Manager); if it is absent the method returns a clear error — build a simple toothed wheel with create_primitive + a Polar pattern instead. properties: {"teeth"(int,default 15),"module"(mm,default 1),"height"(mm,default 5),"pressure_angle"(deg,default 20),"helix_angle"(deg,default 0),"shift"(float,default 0),"axle_hole"(bool),"axle_holesize"(mm,default 10)}.</summary>
+    /// <summary>Create a parametric involute gear (spur or helical) through the FCGear workbench. If FCGear is not installed it is installed automatically in the background (no user action) and the method reports that it is installing — retry in about a minute. properties: {"teeth"(int,default 15),"module"(mm,default 1),"height"(mm,default 5),"pressure_angle"(deg,default 20),"helix_angle"(deg,default 0),"shift"(float,default 0),"axle_hole"(bool),"axle_holesize"(mm,default 10)}.</summary>
     /// <param name="properties">Gear parameters JSON; all optional, FCGear defaults apply when omitted.</param>
     /// <param name="name">Label for the gear object; the created object Name is returned regardless.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The gear object name with validity and volume, or "Error:".</returns>
+    /// <returns>The gear object name with validity and volume, an "installing" notice, or "Error:".</returns>
     public string CreateGear(string? properties = null, string? name = null, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.CreateGear: {properties}");
-        var code = $@"import json
+        var code = $@"import json, sys, os
 doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
 if doc is None: raise ValueError('no document')
-try:
-    import freecad.gears.commands as _gcmd
-except Exception:
-    raise RuntimeError('FCGear workbench (freecad.gears) is not installed. Install it from the FreeCAD Addon Manager, or build a gear with create_primitive + a Polar pattern.')
+
+def _load_gears():
+    try:
+        import freecad.gears.commands as g
+        return g
+    except Exception:
+        pass
+    # FCGear may be installed in the user Mod dir but not on this session's startup
+    # path (e.g. just auto-installed) — load it from there without restarting FreeCAD.
+    try:
+        import freecad, importlib
+        mod = os.path.join(FreeCAD.getUserAppDataDir(), 'Mod')
+        if os.path.isdir(mod):
+            for cand in os.listdir(mod):
+                p = os.path.join(mod, cand)
+                if os.path.isdir(os.path.join(p, 'freecad', 'gears')):
+                    if p not in sys.path: sys.path.insert(0, p)
+                    fp = os.path.join(p, 'freecad')
+                    if fp not in freecad.__path__: freecad.__path__.append(fp)
+                    importlib.invalidate_caches()
+                    import freecad.gears.commands as g
+                    return g
+    except Exception:
+        pass
+    return None
+
+_gcmd = _load_gears()
+if _gcmd is None:
+    raise RuntimeError('FCGEAR_ABSENT')
 FreeCAD.setActiveDocument(doc.Name)
 p = {PyJson(properties)}
 obj = _gcmd.CreateInvoluteGear.create()
@@ -427,7 +480,15 @@ sh = getattr(obj, 'Shape', None)
 _ok = sh is not None and not sh.isNull()
 _result_ = {{'name': obj.Name, 'label': obj.Label, 'valid': bool(sh.isValid()) if _ok else False, 'volume': float(sh.Volume) if _ok else 0.0}}";
         var r = Run(code);
-        if (!r.Success) return Err(r, "create_gear")!;
+        if (!r.Success)
+        {
+            if ((r.ErrorTraceback ?? r.Stderr ?? "").Contains("FCGEAR_ABSENT"))
+            {
+                EnsureFCGearBackground();
+                return FreeCADStrings.Body("GearInstalling");
+            }
+            return Err(r, "create_gear")!;
+        }
         return $"Created gear '{Field(r, "name")}' (valid={Field(r, "valid")}, volume={Field(r, "volume")}).";
     }
 

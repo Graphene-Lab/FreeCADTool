@@ -57,6 +57,14 @@
     </None>
   </ItemGroup>
 
+  <!-- Ship the MCP bridge so the tool can auto-start a headless FreeCAD at runtime.
+       These land in the plugin folder (Tools/FreeCADTool/) next to the DLL, where
+       FreeCADBootstrap locates them via the assembly location. __pycache__ excluded. -->
+  <ItemGroup>
+    <None Include="bridge_headless.py" Pack="True" PackagePath="lib/net10.0" />
+    <None Include="bridge\**\*" Exclude="bridge\**\__pycache__\**" Pack="True" PackagePath="lib/net10.0/bridge" />
+  </ItemGroup>
+
   <Target Name="SetPackageVersion" DependsOnTargets="Build">
     <PropertyGroup>
       <PackageVersion>$(Version)</PackageVersion>
