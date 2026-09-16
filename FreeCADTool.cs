@@ -457,7 +457,7 @@ _result_ = {{'name': feat.Name, 'type': o.ShapeType}}";
     // Undo / redo
     // ─────────────────────────────────────────────────────────────────────
 
-    /// <summary>Undo or redo document transactions, or report how many steps are available.</summary>
+    /// <summary>Undo or redo document transactions, or report how many steps are available. Undo/redo need the FreeCAD GUI — in headless mode they return an error rather than silently doing nothing.</summary>
     /// <param name="action">Undo | Redo | Status.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
     /// <returns>Result text or "Error:".</returns>
@@ -465,11 +465,12 @@ _result_ = {{'name': feat.Name, 'type': o.ShapeType}}";
     {
         Log.LogStep($"FreeCADTool.UndoRedo: {action}");
         var a = action.ToString().ToLowerInvariant();
+        var gui = "if not FreeCAD.GuiUp: raise RuntimeError('undo/redo requires the FreeCAD GUI (no-op in headless)')\n";
         var code = action switch
         {
-            UndoRedoAction.Undo => $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\ndoc.undo()\n_result_ = 'undone'",
-            UndoRedoAction.Redo => $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\ndoc.redo()\n_result_ = 'redone'",
-            _ => $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\n_result_ = {{'undo': doc.undo and True or False, 'redo': doc.redo and True or False}}"
+            UndoRedoAction.Undo => gui + $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\ndoc.undo()\n_result_ = 'undone'",
+            UndoRedoAction.Redo => gui + $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\ndoc.redo()\n_result_ = 'redone'",
+            _ => $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\n_result_ = {{'gui': bool(FreeCAD.GuiUp), 'undo': bool(FreeCAD.GuiUp), 'redo': bool(FreeCAD.GuiUp)}}"
         };
         var r = Run(code);
         if (!r.Success) return Err(r, a)!;

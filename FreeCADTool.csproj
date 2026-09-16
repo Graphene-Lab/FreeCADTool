@@ -40,9 +40,10 @@
     <PackageReference Include="Graphene.AIOrchestrator" Version="1.*" />
   </ItemGroup>
 
-  <!-- Nested test project must NOT compile into this library. -->
+  <!-- Nested test projects must NOT compile into this library. -->
   <ItemGroup>
     <Compile Remove="FreeCADTool.Harness\**\*.cs" />
+    <Compile Remove="FreeCADTool.Scenarios\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

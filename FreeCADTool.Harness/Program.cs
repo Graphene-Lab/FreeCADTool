@@ -61,6 +61,11 @@ Check("create body rev", tool.CreateBody("revb"), NoErr);
 Check("sketch create rev (XZ)", tool.Sketch(FreeCADTool.SketchAction.Create, "revsk", "revb", "XZ_Plane"), NoErr);
 Check("sketch rect rev offset", tool.Sketch(FreeCADTool.SketchAction.Rectangle, "revsk", properties: "{\"x\":5,\"y\":0,\"width\":10,\"height\":10}"), NoErr);
 Check("revolve 360", tool.Feature(FreeCADTool.FeatureAction.Revolve, "revsk", "revb", "{\"angle\":360}"), NoErr);
+Check("revolve volume (tube)", tool.InspectObject("revolve"), r =>
+{
+    var sh = JsonDocument.Parse(r).RootElement.GetProperty("shape");
+    return sh.ValueKind != JsonValueKind.Null && Math.Abs(sh.GetProperty("volume").GetDouble() - Math.PI * (15 * 15 - 5 * 5) * 10) < 5;
+});
 
 // ── pocket (dedicated body: pad then cut a hole) ──
 Check("create body pk", tool.CreateBody("pkb"), NoErr);
@@ -74,11 +79,16 @@ Check("pocket hole", tool.Feature(FreeCADTool.FeatureAction.Pocket, "pksk2", "pk
 // ── patterns (default direction/axis) ──
 Check("pattern linear pad", tool.Pattern(FreeCADTool.PatternAction.Linear, "pad", "b", "{\"length\":30,\"occurrences\":3}"), NoErr);
 Check("pattern polar pad", tool.Pattern(FreeCADTool.PatternAction.Polar, "pad", "b", "{\"angle\":120,\"occurrences\":3}"), NoErr);
+Check("polar pattern shape valid", tool.InspectObject("polar"), r =>
+{
+    var sh = JsonDocument.Parse(r).RootElement.GetProperty("shape");
+    return sh.ValueKind != JsonValueKind.Null && sh.GetProperty("valid").GetBoolean();
+});
 
-// ── undo / redo ──
-Check("undo status", tool.UndoRedo(FreeCADTool.UndoRedoAction.Status), NoErr);
-Check("undo", tool.UndoRedo(FreeCADTool.UndoRedoAction.Undo), NoErr);
-Check("redo", tool.UndoRedo(FreeCADTool.UndoRedoAction.Redo), NoErr);
+// ── undo / redo (GUI-only: in headless they must report the GUI requirement, not silently no-op) ──
+Check("undo status reports gui flag", tool.UndoRedo(FreeCADTool.UndoRedoAction.Status), r => NoErr(r) && r.Contains("gui"));
+Check("undo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Undo), r => r.Contains("GUI"));
+Check("redo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Redo), r => r.Contains("GUI"));
 
 // ── import roundtrip ──
 Check("import step", tool.ImportFile("/out/test.step"), NoErr);

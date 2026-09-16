@@ -181,7 +181,7 @@ _result_ = {{'name': sk.Name}}",
     /// <param name="action">Pad | Pocket | Revolve | Groove | Hole | Loft | Sweep.</param>
     /// <param name="sketch">Profile sketch name (Pad/Pocket/Revolve/Groove/Hole) or first section (Loft).</param>
     /// <param name="body">Target Body name; omit to use the sketch's parent body.</param>
-    /// <param name="properties">Feature JSON. Pad/Pocket: {"length"(mm),"reversed"(bool)}. Revolve/Groove: {"angle"(deg,default 360),"axis":"V_Axis|H_Axis|BaseZ_Axis"}. Hole: {"depth","diameter","threaded"(bool)}. Loft: {"sections":[sketch names],"solid"(bool)}. Sweep: {"spine"(sketch/edge name)}.</param>
+    /// <param name="properties">Feature JSON. Pad/Pocket: {"length"(mm),"reversed"(bool)}. Revolve/Groove: {"angle"(deg,default 360),"axis":"V_Axis|H_Axis|N_Axis" of the profile sketch, default V_Axis}. Hole: {"depth","diameter","threaded"(bool)}. Loft: {"sections":[sketch names],"solid"(bool)}. Sweep: {"spine"(sketch/edge name)}.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
     /// <returns>The feature name, or "Error:".</returns>
     public string Feature(FeatureAction action, string? sketch = null, string? body = null, string? properties = null, string? docName = null)
@@ -225,7 +225,8 @@ try:
     if 'diameter' in p and hasattr(f, 'Diameter'): f.Diameter = float(p['diameter'])
     if 'threaded' in p and hasattr(f, 'Threaded'): f.Threaded = bool(p['threaded'])
     if 'angle' in p and hasattr(f, 'Angle'): f.Angle = float(p['angle'])
-    if 'axis' in p and hasattr(f, 'ReferenceAxis'): f.ReferenceAxis = (b, [p['axis']])
+    if hasattr(f, 'ReferenceAxis') and f.TypeId in ('PartDesign::Revolution', 'PartDesign::Groove'):
+        f.ReferenceAxis = (sk, [p.get('axis', 'V_Axis')])
     if 'reversed' in p and hasattr(f, 'Reversed'): f.Reversed = bool(p['reversed'])
     doc.recompute()
     doc.commitTransaction()
@@ -242,7 +243,7 @@ _result_ = {{'name': f.Name, 'valid': f.isValid() if hasattr(f,'isValid') else T
     /// <param name="action">Linear | Polar | Mirror.</param>
     /// <param name="feature">Source feature name to pattern.</param>
     /// <param name="body">Target Body name; omit to use the feature's parent body.</param>
-    /// <param name="properties">Pattern JSON. Linear: {"length"(mm),"occurrences"(int),"direction":"BaseX_Direction|BaseY_Direction|BaseZ_Direction"}. Polar: {"angle"(deg),"occurrences"(int),"axis":"V_Axis|H_Axis|BaseZ_Axis"}. Mirror: {"plane":"XY_Plane|XZ_Plane|YZ_Plane"}.</param>
+    /// <param name="properties">Pattern JSON. Linear: {"length"(mm),"occurrences"(int),"direction":"BaseX_Direction|BaseY_Direction|BaseZ_Direction"}. Polar: {"angle"(deg),"occurrences"(int),"axis":"V_Axis|H_Axis|N_Axis" of the source profile sketch, default N_Axis}. Mirror: {"plane":"XY_Plane|XZ_Plane|YZ_Plane"}.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
     /// <returns>The pattern feature name, or "Error:".</returns>
     public string Pattern(PatternAction action, string? feature = null, string? body = null, string? properties = null, string? docName = null)
@@ -272,7 +273,11 @@ try:
     if 'length' in p and hasattr(f, 'Length'): f.Length = float(p['length'])
     if 'angle' in p and hasattr(f, 'Angle'): f.Angle = float(p['angle'])
     if 'direction' in p and hasattr(f, 'Direction'): f.Direction = (b, [p['direction']])
-    if 'axis' in p and hasattr(f, 'Axis'): f.Axis = (b, [p['axis']])
+    if hasattr(f, 'Axis'):
+        prof = getattr(src, 'Profile', None)
+        skel = prof[0] if isinstance(prof, (tuple, list)) and len(prof) > 0 else prof
+        if skel is not None:
+            f.Axis = (skel, [p.get('axis', 'N_Axis')])
     if 'plane' in p and hasattr(f, 'MirrorPlane'): f.MirrorPlane = (b, [p['plane']])
     doc.recompute()
     doc.commitTransaction()

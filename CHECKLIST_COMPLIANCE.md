@@ -3,7 +3,8 @@
 Checked 2026-09-15 against `AIOrchestrator/API/TOOL_CHECKLIST.md` (current version incl. the
 "Completion — compliance file" point). `FreeCADTool` is a pure-managed .NET agent tool that drives
 an external FreeCAD instance over a local RPC bridge; it has no native or non-.NET dependencies of
-its own. Verified end-to-end against a live headless FreeCAD 1.1.3 (38/38 harness checks pass).
+its own. Verified end-to-end against a live headless FreeCAD 1.1.3 (40/40 harness checks pass,
+plus 10/10 field-test scenarios).
 
 ## Release & layout (plugin tools)
 
@@ -61,4 +62,5 @@ its own. Verified end-to-end against a live headless FreeCAD 1.1.3 (38/38 harnes
 ## Known limitations (honest notes)
 
 - GUI-only `view` actions (screenshot, visibility, display_mode, color) require a FreeCAD GUI session; in headless mode they return a clear `Error:` rather than a wrong result. Not exercised by the headless harness.
-- Cross-platform: the plugin is OS-neutral (`AnyCPU`, no RID) and the transport is plain TCP/JSON with no platform-specific code. Verified end-to-end (38/38 harness) on **Windows** (FreeCAD 1.1.3) and **Linux/WSL Debian** (FreeCAD 0.20.2), confirming the Python snippets are robust across FreeCAD versions (sketch-to-plane attachment handles both the 1.x `AttachmentSupport`/`getObject` API and the 0.20 `Support`/`OriginFeatures` API). macOS uses the same OS-neutral plugin and the same FreeCAD engine; not executed here (no macOS host available), but no platform-specific code is involved.
+- GUI-only `undo_redo(Undo)` / `undo_redo(Redo)`: FreeCAD's undo stack is GUI-driven, and headless `doc.undo()` is a silent no-op, so the tool raises a clear `Error:` in headless mode rather than falsely reporting a revert. `undo_redo(Status)` works headless and reports the `gui` flag. The harness asserts the GUI-required error; the GUI revert itself was confirmed manually in a GUI session (5000→1000→5000).
+- Cross-platform: the plugin is OS-neutral (`AnyCPU`, no RID) and the transport is plain TCP/JSON with no platform-specific code. Verified end-to-end (40/40 harness + 10/10 scenarios) on **Windows** (FreeCAD 1.1.3) and **Linux/WSL Debian** (FreeCAD 0.20.2), confirming the Python snippets are robust across FreeCAD versions (sketch-to-plane attachment handles both the 1.x `AttachmentSupport`/`getObject` API and the 0.20 `Support`/`OriginFeatures` API; PartDesign Revolution/Groove `ReferenceAxis` and PolarPattern `Axis` resolve to the profile-sketch axes on both). macOS uses the same OS-neutral plugin and the same FreeCAD engine; not executed here (no macOS host available), but no platform-specific code is involved.

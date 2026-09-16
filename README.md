@@ -74,7 +74,7 @@ before the method runs.
 | `boolean(operation, objectNames, name, docName)` | `Fuse` \| `Cut` \| `Common` of solids. |
 | `export(format, path, objectNames, docName)` | `step` \| `stl` \| `3mf` \| `obj` \| `iges`. The file is versioned after writing. |
 | `import_file(path, docName)` | Import a CAD file into the document. |
-| `undo_redo(action, docName)` | `Undo` \| `Redo` \| `Status`. |
+| `undo_redo(action, docName)` | `Undo` \| `Redo` \| `Status`. `Undo`/`Redo` need the GUI (no-op in headless); `Status` works anywhere. |
 | `create_body(name, docName)` | A PartDesign Body — the container for feature-based modeling. |
 | `sketch(action, sketchName, body, plane, properties, docName)` | `Create` \| `Rectangle` \| `Circle` \| `Line` \| `Arc` \| `Point`. |
 | `feature(action, sketch, body, properties, docName)` | `Pad` \| `Pocket` \| `Revolve` \| `Groove` \| `Hole` \| `Loft` \| `Sweep` from a sketch. |
@@ -123,9 +123,12 @@ verified against FreeCAD 1.1.x (Windows) and 0.20.x (Linux) in the test harness.
 
 ## GUI-only features
 
-`view` screenshot, visibility, display mode and color need a FreeCAD GUI session. In headless
-mode they return a clear `Error:` instead of a wrong result. Everything else — modeling,
-booleans, patterns, edge operations, import/export — works fully headless.
+`view` screenshot, visibility, display mode and color need a FreeCAD GUI session. So do
+`undo_redo(Undo)` and `undo_redo(Redo)`: FreeCAD's undo stack is driven by the GUI, and in
+headless mode `doc.undo()` is a silent no-op, so the tool raises a clear `Error:` rather than
+pretending to revert. `undo_redo(Status)` works anywhere and reports whether the GUI is up.
+Everything else — modeling, booleans, patterns, edge operations, import/export — works fully
+headless.
 
 ## What was reshaped from `freecad-AI`
 
