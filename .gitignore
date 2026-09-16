@@ -1,0 +1,17 @@
+# .NET build artifacts
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+TestResults/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Vendored upstream freecad-AI reference tree (a full clone with its own VCS).
+# The launcher needs only the bridge, which is vendored under bridge/RobustMCPBridge/,
+# so the upstream clone itself is not committed.
+freecad-AI/

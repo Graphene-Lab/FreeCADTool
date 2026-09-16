@@ -1,0 +1,171 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  plugin-release.yml — STANDARD plugin release workflow (Graphene-Lab)
+#
+#  IDENTICAL for every plugin repo: copy this file to
+#  .github/workflows/plugin-release.yml and push a tag v* (date version,
+#  e.g. v1.26.08.25) to publish. No per-plugin modifications needed.
+#
+#  What it does:
+#    - builds the plugin, then packs its nupkg;
+#    - the payload comes from the PLUGIN'S OWN nupkg lib/<tfm>/ (dll + xml + the
+#      plugin's own assets — nothing else, so no host content junk);
+#    - plus the plugin's UNIQUE dependency dlls: every package in the restore
+#      graph EXCEPT the AIOrchestrator closure, copied from the NuGet cache
+#      (deterministic — does not rely on what the SDK copied into bin/);
+#    - plus the UNIQUE dependencies' runtimes/ natives (per-RID native libraries
+#      like OwnAudioSharp's ownaudio_ffi): the plugin needs them at runtime and
+#      deploys the matching one into the host app base;
+#    - creates a GitHub Release with the self-contained <Tool>-<version>.zip.
+#
+#  Hosts (AgentBridge, AIOffice) install/update plugins from this zip into
+#  Tools/<Plugin>/. The repo MUST be PUBLIC: hosts download anonymously.
+#
+#  NuGet publication (third-party library consumers) stays in the SEPARATE
+#  publish.yml — the plugin deployment/update logic never touches NuGet.
+# ═══════════════════════════════════════════════════════════════════════
+name: Plugin Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve plugin project and version
+        id: info
+        shell: bash
+        run: |
+          # The first NON-test .csproj in the repo root is the plugin project.
+          PROJ=$(ls *.csproj | grep -viE 'test' | head -n1)
+          echo "proj=$PROJ" >> "$GITHUB_OUTPUT"
+          echo "tool=$(basename "$PROJ" .csproj)" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore + build (also produces obj/project.assets.json)
+        shell: bash
+        run: |
+          # Retry while the date-versioned dependency packages propagate on nuget.org.
+          for i in 1 2 3 4 5 6; do
+            dotnet build "${{ steps.info.outputs.proj }}" -c Release \
+              -p:RestoreForce=true && break
+            echo "retry $i (waiting for dependency packages on nuget.org)..."
+            sleep 60
+          done
+          test -f "obj/project.assets.json"
+
+      - name: Compute host contract + unique deps from the restore graph
+        shell: bash
+        run: |
+          # Host contract = Graphene.AIOrchestrator + its transitive package graph
+          # (the assemblies the host already loads). The plugin zip carries ONLY the
+          # dlls of the packages NOT in that graph — the plugin's unique dependencies.
+          python3 - <<'PY' > unique-deps.txt
+          import json, os, collections
+          assets = json.load(open("obj/project.assets.json"))
+          targets = assets["targets"][next(iter(assets["targets"]))]
+          # The closure is computed by PACKAGE NAME (not name+version): NuGet can resolve a
+          # dependency to a version other than the one the parent nuspec declares, and the
+          # name-only match keeps the whole AIOrchestrator graph (incl. e.g. LibGit2Sharp's
+          # native binaries package) inside the host contract regardless of version drift.
+          by_name = collections.defaultdict(list)
+          for key in targets:
+              name, _, _ = key.partition("/")
+              by_name[name].append(key)
+          closed, queue = set(), collections.deque()
+          for key in targets:
+              if key.startswith("Graphene.AIOrchestrator/"):
+                  queue.append(key.partition("/")[0])
+          while queue:
+              name = queue.popleft()
+              if name in closed:
+                  continue
+              closed.add(name)
+              for key in by_name.get(name, []):
+                  for dep in targets.get(key, {}).get("dependencies", {}):
+                      if dep not in closed:
+                          queue.append(dep)
+          for key in sorted(targets):
+              name = key.partition("/")[0]
+              if name in closed:
+                  continue
+              print(key)
+              for rel in targets.get(key, {}).get("runtime", {}):
+                  dll = os.path.basename(rel)
+                  if dll.lower().endswith(".dll"):
+                      print(key + "\t" + dll)
+          PY
+          echo "unique dep dlls: $(wc -l < unique-deps.txt)"
+          cat unique-deps.txt
+
+      - name: Stage the self-contained plugin folder
+        shell: bash
+        run: |
+          # The payload = the PLUGIN'S OWN nupkg lib/<tfm>/ (dll + xml + own assets)
+          # + the unique dependency dlls (from the NuGet cache, per the graph above).
+          TOOL="${{ steps.info.outputs.tool }}"
+          PROJ="${{ steps.info.outputs.proj }}"
+          for i in 1 2 3 4 5 6; do
+            dotnet pack "$PROJ" -c Release -o ./out -p:SkipNuGetPush=true -p:RestoreForce=true && break
+            echo "retry $i (pack, waiting for dependency packages)..."
+            sleep 60
+          done
+          NUPKG=$(ls ./out/*.nupkg | head -n1)
+          test -n "$NUPKG"
+          rm -rf /tmp/nupkg /tmp/stage && mkdir -p /tmp/nupkg /tmp/stage
+          python3 -m zipfile -e "$NUPKG" /tmp/nupkg
+          STAGE="/tmp/stage/$TOOL"
+          mkdir -p "$STAGE"
+          cp -r /tmp/nupkg/lib/net10.0/. "$STAGE/"
+          # Unique dependency dlls + per-RID runtimes/ natives from the NuGet global
+          # cache. `|| true` keeps the step alive when a "unique dep" is NOT a NuGet
+          # package (a ProjectReference appears in the restore graph but has no cache
+          # folder): such dlls already travel inside the plugin's own nupkg lib/.
+          awk -F'\t' '!seen[$1]++ { print $1 }' unique-deps.txt > unique-pkgs.txt
+          while IFS=$'\t' read -r pkg dll; do
+            id="${pkg%%/*}"; ver="${pkg#*/}"
+            src=$(find "$HOME/.nuget/packages/${id,,}/$ver" -name "$dll" -path '*/lib/*' 2>/dev/null | head -n1)
+            if [ -n "$src" ]; then
+              cp "$src" "$STAGE/"
+            else
+              echo "::warning::unique dep not found in cache: $pkg -> $dll"
+            fi
+          done < unique-deps.txt
+          while IFS=$'\t' read -r pkg; do
+            id="${pkg%%/*}"; ver="${pkg#*/}"
+            if [ -d "$HOME/.nuget/packages/${id,,}/$ver/runtimes" ]; then
+              cp -r "$HOME/.nuget/packages/${id,,}/$ver/runtimes/." "$STAGE/runtimes/"
+            fi
+          done < unique-pkgs.txt
+          echo "--- staged files ---"
+          (cd "$STAGE" && find . -type f | sort)
+
+      - name: Zip + GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TOOL="${{ steps.info.outputs.tool }}"
+          VERSION="${{ steps.info.outputs.version }}"
+          ZIP="$TOOL-$VERSION.zip"
+          (cd /tmp/stage && python3 -m zipfile -c "$GITHUB_WORKSPACE/$ZIP" "$TOOL")
+          ls -lh "$ZIP"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            # Same-day re-release: refresh the asset instead of failing on the existing tag.
+            gh release upload "v$VERSION" "$ZIP" --clobber
+            gh release edit "v$VERSION" --notes "Self-contained plugin zip for host deployment (deps minus the AIOrchestrator graph)."
+          else
+            gh release create "v$VERSION" "$ZIP" \
+              --title "v$VERSION" \
+              --notes "Self-contained plugin zip for host deployment (deps minus the AIOrchestrator graph)."
+          fi

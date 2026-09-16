@@ -1,0 +1,88 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <!-- Plugin binaries must be OS-neutral: AnyCPU and NO RuntimeIdentifier. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Configurations>Debug;Release;Test</Configurations>
+    <PackageId>Graphene.FreeCADTool</PackageId>
+    <Version>$([System.DateTime]::Now.ToString("1.yy.MM.dd"))</Version>
+    <Description>FreeCAD CAD operations agent tool: parametric 3D modeling (primitives, PartDesign bodies, sketches, pad/pocket/revolve, patterns, fillet/chamfer, booleans), document lifecycle, STEP/STL/3MF/OBJ/IGES import-export, views and macros — driven over a local RPC bridge to a running FreeCAD instance.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+    <Copyright>Andrea Bruno</Copyright>
+    <RepositoryUrl>https://github.com/Graphene-Lab/FreeCADTool</RepositoryUrl>
+    <PackageTags>agent;tool;cad;freecad;3d;modeling;partdesign;step;stl;llm;automation</PackageTags>
+    <!-- The vendored freecad-AI reference tree and the nested harness must never be compiled or packed. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);freecad-AI\**;FreeCADTool.Harness\bin\**;FreeCADTool.Harness\obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- Runtime plugin identity: AIOrchestrator.PluginUpdater reads these assembly metadata
+       attributes to know which NuGet package and version a loaded plugin comes from. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="NuGetPackageId" Value="Graphene.FreeCADTool" />
+    <AssemblyMetadata Include="NuGetPackageVersion" Value="$(Version)" />
+  </ItemGroup>
+
+  <!-- Dual-reference pattern (as in AIOrchestrator): the local sibling project wins when
+       present (solution builds); otherwise the NuGet package (1.* floating = always latest)
+       is restored — required for CI/standalone builds where the sibling sources are absent. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AIOrchestrator\AIOrchestrator.csproj" Condition="Exists('..\AIOrchestrator\AIOrchestrator.csproj')" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Graphene.AIOrchestrator" Version="1.*" />
+  </ItemGroup>
+
+  <!-- Nested test project must NOT compile into this library. -->
+  <ItemGroup>
+    <Compile Remove="FreeCADTool.Harness\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="LICENSE.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <Target Name="SetPackageVersion" DependsOnTargets="Build">
+    <PropertyGroup>
+      <PackageVersion>$(Version)</PackageVersion>
+    </PropertyGroup>
+  </Target>
+
+  <PropertyGroup>
+    <NuGetSource Condition="'$(NuGetSource)' == ''">https://api.nuget.org/v3/index.json</NuGetSource>
+  </PropertyGroup>
+
+  <Target Name="CleanOldNuGetPackages" BeforeTargets="GenerateNuspec">
+    <CreateItem Include="$(PackageOutputPath)*.nupkg">
+      <Output TaskParameter="Include" ItemName="_OldNupkg" />
+    </CreateItem>
+    <Delete Files="@(_OldNupkg)" />
+  </Target>
+
+  <Target Name="PublishPackageToNuGet" AfterTargets="Pack" Condition="'$(SkipNuGetPush)' != 'true'">
+    <Error Condition="'$(NuGetApiKey)' == ''"
+           Text="NuGetApiKey env var not set: run `setx NuGetApiKey &lt;key&gt;` and restart Visual Studio." />
+    <CreateItem Include="$(PackageOutputPath)*.nupkg">
+      <Output TaskParameter="Include" ItemName="_NuGetPackageToPush" />
+    </CreateItem>
+    <Error Condition="'@(_NuGetPackageToPush)' == ''"
+           Text="No package found in $(PackageOutputPath): pack produced no expected file." />
+    <Message Importance="High" Text="Publishing %(_NuGetPackageToPush.Identity) to $(NuGetSource) ..." />
+    <Exec Command="dotnet nuget push &quot;%(_NuGetPackageToPush.Identity)&quot; --api-key &quot;$(NuGetApiKey)&quot; --source &quot;$(NuGetSource)&quot; --skip-duplicate" />
+  </Target>
+
+</Project>
