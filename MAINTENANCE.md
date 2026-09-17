@@ -85,6 +85,20 @@ HTTP endpoint. The C# side only *installs* it; the window lives entirely in Free
   `lib/net10.0/chat_mod/`. `FreeCADTool.Chat.cs` → `InstallChatMod` copies that folder into the
   user's `Mod/AgentBridgeChat/` and also copies the `freecad_mcp_bridge` package next to it, so
   the workbench is self-contained and can start the bridge inside the GUI.
+- **Build-output payload.** The `CopyRuntimePayloadToOutput` target (AfterTargets=Build) also
+  drops `bridge_headless.py`, `bridge/` and `chat_mod/` next to the DLL in `$(OutDir)`, not just
+  in the nupkg. The plugin reads these from its own assembly folder, so a locally-built plugin —
+  and the dev `Tools/` deployment built from that output — must have them present or the bridge
+  auto-start and the chat install silently no-op. Keep this target for any new runtime payload file.
+- **Debug zero-touch (host-driven).** When AgentBridge runs under `DEBUG`, its startup sets the
+  **User-level** `AGENTBRIDGE_URL` to its own chat endpoint and then calls `PreInstallChatMod`
+  (via reflection on `AIOrchestrator.API.FreeCADTool`) so a manually-launched FreeCAD on the same
+  machine shows the chat pointed at the debug instance with no manual env setup or file copies.
+  `PreInstallChatMod` enumerates the OS-specific Mod dirs — versioned on Windows
+  (`%AppData%\FreeCAD\v<major>-<minor>\Mod`), flat on Linux/macOS (`…/FreeCAD/Mod`) — and installs
+  into each that has an existing FreeCAD base. The release build clears `AGENTBRIDGE_URL` so the chat
+  falls back to its built-in `http://localhost:5290` default. `FREECAD_DISABLE_AUTOINSTALL=1`
+  short-circuits the whole thing.
 - **Same-instance driving:** `InitGui._start_bridge()` starts `FreecadMCPPlugin` in the GUI
   process on `127.0.0.1:9876` / xmlrpc `9875`, so the agent's `FreeCADTool` edits the visible
   instance. A module-level `_bridge_started` flag stops a second `_open_chat()` (auto-open + the
