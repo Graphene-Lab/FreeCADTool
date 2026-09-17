@@ -101,4 +101,20 @@
     <Exec Command="dotnet nuget push &quot;%(_NuGetPackageToPush.Identity)&quot; --api-key &quot;$(NuGetApiKey)&quot; --source &quot;$(NuGetSource)&quot; --skip-duplicate" />
   </Target>
 
+  <!-- Ship the runtime payload into the BUILD OUTPUT too, not just the nupkg. The plugin
+       reads bridge_headless.py / bridge/ (headless auto-start) and chat_mod/ (chat
+       workbench install) from its own folder (the assembly location). Packing puts them
+       in the nupkg, but a locally-built plugin — and the dev Tools/ deployment built
+       from this output — would otherwise find none of them next to the DLL, so the
+       bridge auto-start and the chat install would silently fail in a debug run. -->
+  <Target Name="CopyRuntimePayloadToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_BridgeTree Include="bridge\**\*" Exclude="bridge\**\__pycache__\**" />
+      <_ChatPayload Include="AgentBridgeChat\**\*" Exclude="AgentBridgeChat\**\__pycache__\**" />
+    </ItemGroup>
+    <Copy SourceFiles="bridge_headless.py" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_BridgeTree)" DestinationFolder="$(OutDir)bridge\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_ChatPayload)" DestinationFolder="$(OutDir)chat_mod\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
