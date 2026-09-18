@@ -170,8 +170,16 @@ FreeCAD GUI + AgentBridge Chat dock  ──HTTP (SSE)──▶  AgentBridge  ─
   `GitTool` and `FreeCADTool`, so it can read/write files, manage git, and model CAD. The agent
   streams its reply token-by-token over Server-Sent Events, and the conversation keeps its context
   across turns via the AgentBridge `session_id`.
-- **Requirements.** AgentBridge (or any host exposing the same OpenAI-compatible endpoint) must be
-  running on the machine. The chat talks to it over `http://localhost:5290/v1/chat/completions`.
+- **Requirements.** AgentBridge (or any host exposing the same OpenAI-compatible endpoint) must
+  be running on the machine. The chat talks to it over `http://localhost:5290/v1/chat/completions`
+  — or `:5291`, the port a **debug build** started from the IDE serves (the host shifts its
+  defaults in Debug). The panel probes both and uses the one that answers, so no configuration is
+  needed either way. If AgentBridge is not running at all, opening the chat **starts it**
+  (see *Reverse start* below).
+- **Reverse start.** The installer records the AgentBridge executable and endpoint next to the
+  panel (`agentbridge.json`). Opening the chat starts AgentBridge itself, in the background, and
+  waits for it — so the whole loop can be driven from FreeCAD alone, without launching the host
+  first. Turn it off by editing `autostart` in that file.
 - **Overridable** with environment variables (advanced):
 
   | Variable | Meaning |
@@ -205,6 +213,7 @@ before the method runs.
 | `boolean(operation, objectNames, name, docName)` | `Fuse` \| `Cut` \| `Common` of solids. |
 | `export(format, path, objectNames, docName)` | `step` \| `stl` \| `3mf` \| `obj` \| `iges`. The file is versioned after writing. |
 | `import_file(path, docName)` | Import a CAD file into the document. |
+| `get_complex_part(name)` | Fetch a ready-made part from the public FreeCAD Parts Library and import it (`.FCStd` first, else STEP/IGES/STL). `name` is in English. |
 | `undo_redo(action, docName)` | `Undo` \| `Redo` \| `Status`. `Undo`/`Redo` need the GUI (no-op in headless); `Status` works anywhere. |
 | `create_body(name, docName)` | A PartDesign Body — the container for feature-based modeling. |
 | `sketch(action, sketchName, body, plane, properties, docName)` | `Create` \| `Rectangle` \| `Circle` \| `Line` \| `Arc` \| `Point`. |
@@ -228,11 +237,39 @@ status()
 
 ## Ready-made parts (without drawing them)
 
-You usually do **not** need a dedicated "fetch a part" method. The clean, format-based path is
-already built in: download a standard part from any public CAD archive (McMaster-Carr, Traceparts,
-GrabCAD, the FreeCAD part libraries, etc.) as **STEP / IGES / STL / OBJ** and bring it in with
-`import_file(path)`. It lands in the active document as an editable object you can then
-`transform`, `boolean`, `export`, or use as a reference.
+**Complex real-world objects are searched for, not modeled.** For anything primitives cannot
+reproduce — an astronaut, a spaceship, a robot arm, a gearbox, a machine tool — the agent must call
+**`get_complex_part(name)` first**, and only fall back to modeling when the search finds nothing.
+The method is documented that way in the tool itself, so the agent follows the rule without being
+told in the prompt.
+
+`get_complex_part(name)` searches the public **[FreeCAD Parts Library](https://github.com/FreeCAD/FreeCAD-library)**
+(the community catalog the FreeCAD Addon Manager indexes: several thousand contributed parts across
+`Robots/`, `Parts/`, `Electrical Parts/`, `Fasteners/`, `Architectural Parts/` …), downloads the
+best match into the workspace and imports it into the active document.
+
+- **`name` is in English** — plain catalog words, one or two is best (`"spur gear"`, `"ball
+  bearing"`, `"robot arm"`), not a path or a file name. The agent translates first (`astronave` →
+  `spaceship`).
+- **The best match wins.** Paths whose name matches the query best come first, and inside the same
+  match quality the **most complete document** is taken — the library publishes no rating, so the
+  larger file (more features, more detail) is the deterministic stand-in, exactly as the ranking
+  comment in the source describes. Plural and short variants of a word count as a match (`robot` /
+  `robots`, `gear` / `gears`).
+- **`.FCStd` first** — a native document keeps its parametric feature tree, so the imported part
+  stays editable; STEP/IGES/STL are imported as an unparametric shape only when no `.FCStd` matched
+  (the result says so).
+- **It never clones the 5.8 GB repository.** The file list comes from the GitHub tree API, the index
+  is cached in the workspace (`.freecad-library-index.json`, one week) and only the single winning
+  file is downloaded. Anonymous GitHub API rate limit is 60 requests/hour — the error names it when
+  it is hit.
+- **Alternatives are printed.** The result lists the next candidates by match quality, so the agent
+  can call again with a neighbouring name when the geometry is not the one it wanted.
+
+You can also bring in a part you found yourself: download any standard part (McMaster-Carr,
+Traceparts, GrabCAD, …) as **STEP / IGES / STL / OBJ** and use `import_file(path)`. It lands in the
+active document as an editable object you can then `transform`, `boolean`, `export`, or use as a
+reference.
 
 Parametric standard parts the tool can generate itself — bolt circles, washers, spacers, flanges,
 and a simple toothed wheel (a base cylinder plus a `Polar` pattern of teeth) — are built with the

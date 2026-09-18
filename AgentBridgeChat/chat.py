@@ -15,13 +15,67 @@ from _qt import QtCore, QtWidgets
 DEFAULT_URL = "http://localhost:5290/v1/chat/completions"
 DEFAULT_TOOLS = ["FileTool", "GitTool", "FreeCADTool"]
 
+# AgentBridge's HTTP server, by build kind: a release host serves the configured default
+# (5290), a debug build started from the IDE serves 5291 (the dev shift in the host, see
+# AgentBridge docs-dev/ARCHITECTURE.md). The panel tries both, so the chat works against
+# whichever host is running without anyone editing a config.
+HOST_PORTS = (5290, 5291)
 
-def _chat_url():
-    return os.environ.get("AGENTBRIDGE_URL", DEFAULT_URL)
+_CONFIG_NAME = "agentbridge.json"
+_resolved_url = None    # last endpoint that answered /health
+
+
+def _host_config():
+    """What the installer wrote next to this file (endpoint, executable, tool set). It is the
+    persisted half of the endpoint decision: a debug AgentBridge publishes AGENTBRIDGE_URL for
+    this session, and the installer records it here for the sessions where the environment was
+    lost (a FreeCAD started from a shell that predates the host)."""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), _CONFIG_NAME),
+                  "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
+
+def candidate_urls():
+    """Endpoints to try, in order: the live session's endpoint (AGENTBRIDGE_URL, which a debug
+    host publishes so a manually launched FreeCAD inherits it), then the endpoint the installer
+    recorded, then both standard AgentBridge ports."""
+    urls = []
+    for url in (os.environ.get("AGENTBRIDGE_URL"), _host_config().get("url"), DEFAULT_URL):
+        if url and url not in urls:
+            urls.append(url)
+    for port in HOST_PORTS:
+        url = "http://localhost:%d/v1/chat/completions" % port
+        if url not in urls:
+            urls.append(url)
+    return urls
+
+
+def probe_host(timeout=1.5):
+    """The first candidate endpoint that answers /health, or None. The answer is remembered, so
+    the menu check and the panel itself agree on one endpoint."""
+    global _resolved_url
+    for url in candidate_urls():
+        base = url.split("/v1/")[0].rstrip("/")
+        try:
+            with urllib.request.urlopen(base + "/health", timeout=timeout) as resp:
+                if 200 <= resp.status < 300:
+                    _resolved_url = url
+                    return url
+        except Exception:
+            continue
+    return None
+
+
+def chat_url():
+    """Endpoint the panel connects to: the endpoint that answered last, else the configured one."""
+    return _resolved_url or candidate_urls()[0]
 
 
 def _chat_tools():
-    raw = os.environ.get("AGENTBRIDGE_CHAT_TOOLS", "")
+    raw = _host_config().get("tools") or os.environ.get("AGENTBRIDGE_CHAT_TOOLS", "")
     if raw.strip():
         return [t.strip() for t in raw.split(",") if t.strip()]
     return list(DEFAULT_TOOLS)
@@ -107,7 +161,7 @@ class ChatWidget(QtWidgets.QWidget):
         super().__init__(parent)
         self._history = []          # list of {"role","content"}
         self._streaming = ""        # in-flight assistant text
-        self._client = ChatClient(_chat_url())
+        self._client = ChatClient(chat_url())
         self._build_ui()
         self._client.chunk.connect(self._on_chunk)
         self._client.done.connect(self._on_done)
@@ -180,33 +234,41 @@ class ChatWidget(QtWidgets.QWidget):
         self._render()
 
 
-_DOCK_ATTR = "_agentbridge_chat_dock"
+_dock = None     # the single chat dock, kept across open/close so the conversation survives
+
+
+def _main_window():
+    """FreeCAD's main window — the QMainWindow a dock must be added to.
+
+    This is NOT `QApplication.instance()`: that is the application object, which does not have
+    addDockWidget, so the dock was never created and the chat silently never appeared."""
+    try:
+        import FreeCADGui
+        return FreeCADGui.getMainWindow()
+    except Exception:
+        return None
 
 
 def show_chat_dock():
-    """Add (once) the AgentBridge chat dock to the FreeCAD main window."""
-    mw = QtWidgets.QApplication.instance()
+    """Add the AgentBridge chat dock to the FreeCAD main window (once), or reveal it again."""
+    global _dock
+    mw = _main_window()
     if mw is None:
         return
-    existing = getattr(mw, _DOCK_ATTR, None)
-    if existing is not None:
-        existing.show()
-        existing.raise_()
+    if _dock is not None:
+        _dock.show()
+        _dock.raise_()
         return
     dock = QtWidgets.QDockWidget("AgentBridge Chat", mw)
     dock.setWidget(ChatWidget(dock))
     dock.setObjectName("AgentBridgeChatDock")
     mw.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
-    setattr(mw, _DOCK_ATTR, dock)
+    _dock = dock
 
 
 def hide_chat_dock():
     """Hide the dock if it is open. The dock is kept (not destroyed) so reopening it from
     the Tools menu or the File toolbar restores the same conversation, including the
     AgentBridge session it is talking to."""
-    mw = QtWidgets.QApplication.instance()
-    if mw is None:
-        return
-    existing = getattr(mw, _DOCK_ATTR, None)
-    if existing is not None:
-        existing.hide()
+    if _dock is not None:
+        _dock.hide()

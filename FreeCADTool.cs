@@ -6,7 +6,7 @@ using AIOrchestrator;
 
 namespace AIOrchestrator.API;
 
-/// <summary>FreeCAD parametric CAD for agent use: create and edit 3D primitives and PartDesign bodies, sketch profiles, pad/pocket/revolve/groove, linear/polar/mirror patterns, fillet/chamfer, boolean fuse/cut/common, and import/export STEP/STL/3MF/OBJ/IGES.
+/// <summary>FreeCAD parametric CAD for agent use: model 3D primitives and PartDesign bodies, sketches, pad/pocket/revolve/groove, patterns, fillet/chamfer, booleans, and import/export STEP/STL/3MF/OBJ/IGES. For a complex real-world object that primitives cannot reproduce — an astronaut, a spaceship, a robot arm, a gearbox, a bearing — search the public parts libraries first with get_complex_part instead of building the shape by hand.
 /// Requires a running FreeCAD instance. Operations act on the active document unless a document name is given — start with document("create", name) or document("open", path).
 /// File paths are Unix-style relative to the workspace root (leading "/", e.g. /part.FCStd, /out/model.step). Saved/exported files are versioned; roll back via GitTool.restore.</summary>
 public partial class FreeCADTool : BaseAgentTool, IFileTool
@@ -36,9 +36,11 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
         if (_bridgeReady) return null;
         if (FreeCADBootstrap.IsBridgeUp(_bridge.Host, _bridge.Port)) { _bridgeReady = true; EnsureChatMod(); return null; }
 
-        // Nothing is listening — start FreeCAD ourselves. Tell the user why the first
-        // call may pause (no-op on headless systems with no desktop notifier).
-        SystemNotifier.Notify("FreeCADTool", FreeCADStrings.Body("BridgeStarting"));
+        // Nothing is listening — start FreeCAD ourselves. A FreeCAD WINDOW that is already open
+        // cannot be driven unless the chat panel started the bridge inside it, so say what to do
+        // about that instead of leaving the user to wonder why a windowless copy is being edited.
+        SystemNotifier.Notify("FreeCADTool",
+            FreeCADStrings.Body(IsFreeCADGuiRunning() ? "BridgeStartingGui" : "BridgeStarting"));
         var reason = FreeCADBootstrap.EnsureBridge(_bridge.Host, _bridge.Port);
         if (reason == null) { _bridgeReady = true; EnsureChatMod(); return null; }
 
@@ -47,6 +49,18 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
             : FreeCADStrings.Body("BridgeFailed");
         SystemNotifier.Notify("FreeCADTool", msg);
         return new ExecResult(false, null, "", msg, "BootstrapError", null);
+    }
+
+    /// <summary>True when a FreeCAD GUI process is running. Its bridge is what would let the
+    /// agent edit the window the user sees — the process name is the same on every OS, and a
+    /// process that cannot be enumerated just means "probably not running".</summary>
+    private static bool IsFreeCADGuiRunning()
+    {
+        try
+        {
+            return System.Diagnostics.Process.GetProcessesByName("FreeCAD").Length > 0;
+        }
+        catch { return false; }
     }
 
     /// <summary>Build a failure message from a failed ExecResult, or null when it succeeded.</summary>

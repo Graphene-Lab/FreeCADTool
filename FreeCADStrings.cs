@@ -59,6 +59,15 @@ internal static class FreeCADStrings
             ["de"] = "FreeCAD wird im Hintergrund für CAD-Operationen gestartet. Das kann ein paar Sekunden dauern…",
             ["ru"] = "Запуск FreeCAD в фоновом режиме для операций CAD. Это может занять несколько секунд…",
         },
+        ["BridgeStartingGui"] = new()
+        {
+            ["en"] = "FreeCAD is already open, but its AgentBridge chat panel is not: the agent will work in a windowless FreeCAD. Open the chat in FreeCAD (Tools → Open AgentBridge Chat) and repeat the request to edit the window you see.",
+            ["it"] = "FreeCAD è già aperto, ma il suo pannello chat di AgentBridge no: l'agente lavorerà su un FreeCAD senza finestra. Apri la chat in FreeCAD (Strumenti → Open AgentBridge Chat) e ripeti la richiesta per modificare la finestra che vedi.",
+            ["fr"] = "FreeCAD est déjà ouvert, mais pas son panneau de chat AgentBridge : l'agent travaillera dans un FreeCAD sans fenêtre. Ouvrez le chat dans FreeCAD (Outils → Open AgentBridge Chat), puis répétez la demande pour modifier la fenêtre que vous voyez.",
+            ["es"] = "FreeCAD ya está abierto, pero su panel de chat de AgentBridge no: el agente trabajará en un FreeCAD sin ventana. Abre el chat en FreeCAD (Herramientas → Open AgentBridge Chat) y repite la petición para modificar la ventana que ves.",
+            ["de"] = "FreeCAD ist bereits geöffnet, sein AgentBridge-Chatfenster jedoch nicht: Der Agent arbeitet in einem FreeCAD ohne Fenster. Öffnen Sie den Chat in FreeCAD (Werkzeuge → Open AgentBridge Chat) und wiederholen Sie die Anfrage, um das sichtbare Fenster zu bearbeiten.",
+            ["ru"] = "FreeCAD уже открыт, но его панель чата AgentBridge — нет: агент будет работать в FreeCAD без окна. Откройте чат в FreeCAD (Сервис → Open AgentBridge Chat) и повторите запрос, чтобы изменить видимое окно.",
+        },
         ["BridgeFailed"] = new()
         {
             ["en"] = "Could not start FreeCAD automatically. Please open FreeCAD and try again.",

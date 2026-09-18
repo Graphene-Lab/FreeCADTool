@@ -54,6 +54,12 @@ creating new ones.**
 - Keep the class-level `<summary>` and the method docs updated to reflect the new member/parameter,
   following the agent-facing description rules in `AGENT_TOOLS_GUIDE.md` (outcomes, not internals;
   fixed value sets as enums).
+- **A rule the agent must follow has to live in the FIRST line of the class summary.** AgentBridge
+  runs the lean orchestrator: plugin tools sit behind `launch_subagent`, and the orchestrator's
+  catalog carries only `Terminal.GetClassDescriptionFirstLine(type)` per tool — the rest of the
+  summary is visible only to the subagent. A "call X first for complex work" rule written on line
+  two is invisible to the planner, which then writes a subagent prompt that ignores it (observed
+  live: the planner ordered primitives because it could not see the `get_complex_part` rule).
 
 ## After any change
 
@@ -113,6 +119,22 @@ HTTP endpoint. The C# side only *installs* it; the window lives entirely in Free
   into each that has an existing FreeCAD base. The release build clears `AGENTBRIDGE_URL` so the chat
   falls back to its built-in `http://localhost:5290` default. `FREECAD_DISABLE_AUTOINSTALL=1`
   short-circuits the whole thing.
+- **Endpoint resolution (the panel side).** `chat.candidate_urls()` is the one place that decides
+  where the host may be, and `chat.probe_host()` returns the first candidate whose `/health`
+  answers: the live session's `AGENTBRIDGE_URL` (a debug host publishes it at User level, so a
+  manually launched FreeCAD inherits it), then the endpoint the installer recorded in
+  `agentbridge.json`, then both standard host ports — **5290** (release) and **5291** (a debug
+  build shifts its own default). The answer is remembered, so the menu check and the dock use the
+  same endpoint. `InstallChatMod` writes that config from `HostEndpoint()`, which reads the
+  process value first and the **User-level** value second (on Windows) — a debug host sets the
+  User-level value in the same startup pass, and the current process block does not see it.
+- **Reverse start.** The installer also records the **executable that installed the Mod**
+  (`exe` = `Environment.ProcessPath`) and `autostart`. Opening the chat when no host answers
+  `/health` spawns that executable detached (`DETACHED_PROCESS | CREATE_NO_WINDOW` on Windows,
+  `start_new_session` on POSIX — no console window), then polls `/health` once a second on a Qt
+  timer (60 tries) before showing the dock, so the whole loop can be driven from FreeCAD alone.
+  `autostart: false` in `agentbridge.json` disables it and the panel just reports the connection
+  problem.
 - **Same-instance driving:** `InitGui._start_bridge()` starts `FreecadMCPPlugin` in the GUI
   process on `127.0.0.1:9876` / xmlrpc `9875`, so the agent's `FreeCADTool` edits the visible
   instance. A module-level `_bridge_started` flag stops a second entry into the bridge start (the

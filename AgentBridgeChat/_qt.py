@@ -11,3 +11,8 @@ except ImportError:
         from PySide2 import QtCore, QtGui, QtWidgets     # FreeCAD 0.20
     except ImportError:
         from PySide6 import QtCore, QtGui, QtWidgets     # explicit PySide6
+
+# QAction lives in QtWidgets in Qt5 and Qt6 but in QtGui in Qt4, and FreeCAD's `PySide` shim does
+# not always re-export it from QtWidgets (seen on 1.1.3). Take it from wherever this build has it,
+# so callers never ask a module that does not hold it.
+QAction = getattr(QtWidgets, "QAction", None) or getattr(QtGui, "QAction", None)

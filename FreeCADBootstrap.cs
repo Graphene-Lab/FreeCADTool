@@ -151,6 +151,64 @@ internal static class FreeCADBootstrap
         return null;
     }
 
+    /// <summary>The user application-data directory of the FreeCAD the tool would use — asked OF
+    /// FreeCAD, not guessed. The layouts differ by install kind and version: the Windows installer
+    /// keeps it under <c>%APPDATA%\FreeCAD</c>, a distribution under <c>~/.local/share/FreeCAD</c>
+    /// or <c>~/Library/Application Support/FreeCAD</c>, and a PORTABLE archive — the official .7z,
+    /// unpacked on any drive — keeps it INSIDE the install folder (<c>…\data</c>). The chat's Mod
+    /// directory is <c>&lt;that&gt;/Mod</c>, so a guessed path means the chat never loads and the
+    /// agent silently falls back to a headless FreeCAD. Runs the discovered <c>freecadcmd</c> once
+    /// on a small script and caches the answer; null when FreeCAD cannot be run, in which case the
+    /// caller falls back to the OS-standard locations.</summary>
+    public static string? GetUserAppDataDir()
+    {
+        lock (DiscoveryGate)
+        {
+            if (_userAppDataDirSet) return _userAppDataDir;
+            _userAppDataDirSet = true;
+            _userAppDataDir = QueryUserAppDataDir();
+            Log.LogStep(_userAppDataDir != null
+                ? $"FreeCADBootstrap: FreeCAD user data dir is {_userAppDataDir}"
+                : "FreeCADBootstrap: FreeCAD could not report its user data dir (falling back to the OS-standard locations)");
+            return _userAppDataDir;
+        }
+    }
+
+    private static string? QueryUserAppDataDir()
+    {
+        var freecad = FindFreeCAD();
+        if (freecad == null) return null;
+        var script = Path.Combine(Path.GetTempPath(), "agentbridge_userdir.py");
+        try
+        {
+            File.WriteAllText(script, "import FreeCAD\nprint(FreeCAD.getUserAppDataDir())\n");
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = freecad,
+                Arguments = "\"" + script + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            if (process == null) return null;
+            var stdout = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(60_000);
+            foreach (var line in stdout.Split('\n'))
+            {
+                var candidate = line.Trim();
+                if (candidate.Length > 0 && Path.IsPathRooted(candidate) && Directory.Exists(candidate))
+                    return candidate;
+            }
+            return null;
+        }
+        catch { return null; }
+        finally { try { File.Delete(script); } catch { } }
+    }
+
+    private static string? _userAppDataDir;
+    private static bool _userAppDataDirSet;
+
     private static string? FindWindows()
     {
         const string name = "freecadcmd.exe";
