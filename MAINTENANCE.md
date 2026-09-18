@@ -73,18 +73,32 @@ Python snippets from upstream, keep them robust across both FreeCAD API generati
 sketch-to-plane attachment handles both the 1.x `AttachmentSupport`/`Origin.getObject` API and
 the 0.20 `Support`/`OriginFeatures` Role-match API. Test on both before shipping.
 
-## AgentBridge Chat workbench
+## AgentBridge Chat (the panel inside FreeCAD)
 
 The plugin also ships a small FreeCAD-side add-on that puts a chat dock inside the FreeCAD GUI.
-It is **not** C# — it is a Python/PySide workbench that talks to the host's OpenAI-compatible
+It is **not** C# — it is a Python/PySide add-on that talks to the host's OpenAI-compatible
 HTTP endpoint. The C# side only *installs* it; the window lives entirely in FreeCAD.
 
-- **Source:** `AgentBridgeChat/InitGui.py` (workbench + auto-open), `AgentBridgeChat/chat.py`
-  (dock widget + SSE client), `AgentBridgeChat/_qt.py` (Qt import shim).
+- **Source:** `AgentBridgeChat/InitGui.py` (command, menu/toolbar wiring, bridge and document
+  gate), `AgentBridgeChat/chat.py` (dock widget + SSE client), `AgentBridgeChat/_qt.py` (Qt import
+  shim), `AgentBridgeChat/AgentBridgeChat.svg` (the command icon).
+- **Where the user finds it, and when.** The command is offered from FreeCAD's **Tools** menu and
+  from a button in the standard **File** toolbar, in EVERY workbench, through
+  `Gui.addWorkbenchManipulator` (the supported API for extending the standard menus; the bundled
+  BIM workbench uses it too). Both entry points are gated on `IsActive` → `FreeCAD.ActiveDocument
+  is not None`, so they grey out on the start page exactly like FreeCAD's own drawing commands —
+  asking the agent to change a project before a project exists is meaningless. `InitGui.py` also
+  refreshes the *current* workbench once at startup, and only when the command is not yet in the
+  menus (the manipulator applies from the next activation on).
+- **Nothing opens by itself, and the bridge follows the document.** There is no startup auto-open
+  and no startup bridge: a `DocumentObserver` starts the bridge when the first document appears
+  (also covering a document already open at import time) and hides the dock when the last one
+  closes. That keeps a bridge off port 9876 until there is something to edit, and keeps FreeCAD's
+  report view quiet at boot.
 - **Packing:** the csproj packs `AgentBridgeChat/**` (minus `__pycache__`) to
   `lib/net10.0/chat_mod/`. `FreeCADTool.Chat.cs` → `InstallChatMod` copies that folder into the
   user's `Mod/AgentBridgeChat/` and also copies the `freecad_mcp_bridge` package next to it, so
-  the workbench is self-contained and can start the bridge inside the GUI.
+  the add-on is self-contained and can start the bridge inside the GUI.
 - **Build-output payload.** The `CopyRuntimePayloadToOutput` target (AfterTargets=Build) also
   drops `bridge_headless.py`, `bridge/` and `chat_mod/` next to the DLL in `$(OutDir)`, not just
   in the nupkg. The plugin reads these from its own assembly folder, so a locally-built plugin —
@@ -101,8 +115,8 @@ HTTP endpoint. The C# side only *installs* it; the window lives entirely in Free
   short-circuits the whole thing.
 - **Same-instance driving:** `InitGui._start_bridge()` starts `FreecadMCPPlugin` in the GUI
   process on `127.0.0.1:9876` / xmlrpc `9875`, so the agent's `FreeCADTool` edits the visible
-  instance. A module-level `_bridge_started` flag stops a second `_open_chat()` (auto-open + the
-  manual menu command) from trying to bind the ports twice.
+  instance. A module-level `_bridge_started` flag stops a second entry into the bridge start (the
+  document observer and the menu command/button share one code path) from binding the ports twice.
 - **The `commands.py` gotcha.** `bridge_utils.get_running_plugin()` / `register_mcp_plugin()`
   reach for a top-level `commands` module that lives at the **RobustMCPBridge workbench root**, not
   inside the `freecad_mcp_bridge` package we copy. In a chat-Mod-only install that module is
@@ -112,9 +126,10 @@ HTTP endpoint. The C# side only *installs* it; the window lives entirely in Free
 - **Qt shim.** FreeCAD 1.x exposes Qt as `PySide` (PySide6); 0.20.x ships PySide2 whose `PySide`
   shim does **not** re-export `QtWidgets`. `_qt.py` tries `PySide → PySide2 → PySide6`. Always
   import Qt through `_qt` in this workbench, never `from PySide import …` directly.
-- **Headless import safety.** `InitGui.py` guards `Gui.addCommand`/`addWorkbench` with `hasattr`
-  so the module imports cleanly under `freecadcmd` (whose `FreeCADGui` is a stub without those).
-  Keep that guard — it is what lets the import smoke-test run headless.
+- **Headless import safety.** `InitGui.py` guards `Gui.addCommand`, `Gui.addWorkbenchManipulator`
+  and `FreeCAD.addDocumentObserver` with `hasattr` so the module imports cleanly under `freecadcmd`
+  (whose `FreeCADGui` is a stub without those). Keep that guard — it is what lets the import
+  smoke-test run headless.
 - **Verification.** Import both `chat` and `InitGui` under `freecadcmd` on **FreeCAD 0.20.2
   (WSL)** and **FreeCAD 1.1.3 (Windows)** and confirm no exception. The SSE client contract is
   verified against a mock streaming server. The full GUI round-trip (dock rendering, bridge

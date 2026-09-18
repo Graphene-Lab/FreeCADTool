@@ -198,3 +198,15 @@ def show_chat_dock():
     dock.setObjectName("AgentBridgeChatDock")
     mw.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
     setattr(mw, _DOCK_ATTR, dock)
+
+
+def hide_chat_dock():
+    """Hide the dock if it is open. The dock is kept (not destroyed) so reopening it from
+    the Tools menu or the File toolbar restores the same conversation, including the
+    AgentBridge session it is talking to."""
+    mw = QtWidgets.QApplication.instance()
+    if mw is None:
+        return
+    existing = getattr(mw, _DOCK_ATTR, None)
+    if existing is not None:
+        existing.hide()

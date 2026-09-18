@@ -106,9 +106,20 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
     public string Status()
     {
         Log.LogStep("FreeCADTool.Status");
+        // Same bootstrap as every other method: this is the method the agent calls FIRST, so a
+        // bare "not reachable" here would ask the user to start FreeCAD by hand — the one thing
+        // the bootstrap exists to avoid. When it fails, the reason is already localized and the
+        // user got a notification.
+        var boot = EnsureBridge();
+        if (boot != null) return Err(boot.Value, "status")!;
         var ping = _bridge.Ping();
         if (ping < 0)
-            return $"Error: cannot reach the FreeCAD bridge at {_bridge.Host}:{_bridge.Port}. Start FreeCAD and the MCP bridge, then retry.";
+        {
+            // The bridge was up (or brought up) and does not answer now: let the next call
+            // re-run the bootstrap instead of trusting the cache.
+            _bridgeReady = false;
+            return Err(new ExecResult(false, null, "", FreeCADStrings.Body("BridgeFailed"), "ConnectionError", null), "status")!;
+        }
         var r = Run("import FreeCAD, sys\n_result_ = {'version': '.'.join(FreeCAD.Version()[:3]), 'gui': bool(FreeCAD.GuiUp), 'py': sys.version.split()[0]}");
         if (!r.Success) return Err(r, "status")!;
         return $"Connected to FreeCAD {_bridge.Host}:{_bridge.Port} (ping {ping:F0} ms) — version {Field(r, "version")}, Python {Field(r, "py")}, GUI {(Field(r, "gui") == "True" ? "available" : "headless")}.";

@@ -65,9 +65,9 @@
     <None Include="bridge\**\*" Exclude="bridge\**\__pycache__\**" Pack="True" PackagePath="lib/net10.0/bridge" />
   </ItemGroup>
 
-  <!-- Ship the AgentBridge chat workbench payload. FreeCADTool.InstallChatMod copies
-       this (plus the bridge package above) into the user's FreeCAD Mod dir so the
-       chat dock auto-appears in the FreeCAD GUI. __pycache__ excluded. -->
+  <!-- Ship the AgentBridge chat payload. FreeCADTool.InstallChatMod copies this (plus the
+       bridge package above) into the user's FreeCAD Mod dir, which is what makes the chat
+       command available from FreeCAD's Tools menu and its File toolbar. __pycache__ excluded. -->
   <ItemGroup>
     <None Include="AgentBridgeChat\**\*" Exclude="AgentBridgeChat\**\__pycache__\**" Pack="True" PackagePath="lib/net10.0/chat_mod" />
   </ItemGroup>

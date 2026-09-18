@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AgentBridge Chat command icon: a chat bubble with three dots, drawn to stay legible
+     at FreeCAD's toolbar size (16-24 px). Monochrome so it follows the theme like the
+     standard toolbar icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <path d="M10 12h44a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H30l-12 9v-9h-8a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4z"
+        fill="none" stroke="#2b2b2b" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="21" cy="29" r="3.5" fill="#2b2b2b"/>
+  <circle cx="32" cy="29" r="3.5" fill="#2b2b2b"/>
+  <circle cx="43" cy="29" r="3.5" fill="#2b2b2b"/>
+</svg>

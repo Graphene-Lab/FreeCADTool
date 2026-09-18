@@ -12,10 +12,11 @@ public partial class FreeCADTool
     // 0 = never started, 1 = installing, 2 = installed, 3 = failed.
     private static int _chatInstallState;
 
-    /// <summary>Install the AgentBridge chat workbench into the user's FreeCAD Mod
-    /// dir, one-shot and in the background, so the chat dock appears automatically
-    /// the next time the FreeCAD GUI starts. Honors FREECAD_DISABLE_AUTOINSTALL=1
-    /// (used by the harness) to skip the real Mod-dir write.</summary>
+    /// <summary>Install the AgentBridge chat panel into the user's FreeCAD Mod
+    /// dir, one-shot and in the background, so FreeCAD offers the chat from its Tools menu and
+    /// its File toolbar (enabled while a document is open) the next time the GUI starts.
+    /// Entry points and behaviour: AgentBridgeChat/InitGui.py.
+    /// Honors FREECAD_DISABLE_AUTOINSTALL=1 (used by the harness) to skip the real Mod-dir write.</summary>
     private void EnsureChatMod()
     {
         if (Environment.GetEnvironmentVariable("FREECAD_DISABLE_AUTOINSTALL") == "1") return;
