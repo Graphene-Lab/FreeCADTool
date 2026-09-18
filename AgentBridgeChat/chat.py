@@ -6,6 +6,7 @@
 # back to the GUI through Qt signals, so the FreeCAD UI never blocks.
 import json
 import os
+import socket
 import threading
 import urllib.error
 import urllib.request
@@ -14,6 +15,22 @@ from _qt import QtCore, QtWidgets
 
 DEFAULT_URL = "http://localhost:5290/v1/chat/completions"
 DEFAULT_TOOLS = ["FileTool", "GitTool", "FreeCADTool"]
+
+# Idle timeout for the chat stream, in seconds. This is a watchdog on SILENCE, not a limit on
+# the job: AgentBridge sends a keepalive comment every 15 s while the agent works, so a long
+# task (a podcast, a CAD build — tens of minutes) never trips it, while a genuinely dead
+# connection is reported in two minutes. Override with "timeout" in agentbridge.json or the
+# AGENTBRIDGE_CHAT_TIMEOUT environment variable.
+DEFAULT_IDLE_TIMEOUT = 120
+
+
+def idle_timeout():
+    raw = _host_config().get("timeout") or os.environ.get("AGENTBRIDGE_CHAT_TIMEOUT", "")
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_IDLE_TIMEOUT
+    return value if value >= 30 else DEFAULT_IDLE_TIMEOUT
 
 # AgentBridge's HTTP server, by build kind: a release host serves the configured default
 # (5290), a debug build started from the IDE serves 5291 (the dev shift in the host, see
@@ -116,7 +133,7 @@ class ChatClient(QtCore.QObject):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=300) as resp:
+            with urllib.request.urlopen(req, timeout=idle_timeout()) as resp:
                 for raw in resp:
                     line = raw.decode("utf-8", "replace").rstrip("\r\n")
                     if not line.startswith("data: "):
@@ -143,6 +160,12 @@ class ChatClient(QtCore.QObject):
             self.error.emit("HTTP %s: %s" % (exc.code, _read_err(exc)))
         except urllib.error.URLError as exc:
             self.error.emit("Cannot reach AgentBridge at %s (%s). Is it running?" % (self.url, exc.reason))
+        except (socket.timeout, TimeoutError):
+            # Silence, not a slow job: the host sends a keepalive every 15 s while the agent
+            # works, so nothing arriving for idle_timeout() seconds means the connection is dead.
+            self.error.emit("No answer from AgentBridge for %d s — the connection looks dead. "
+                          "The task may still be running; check the AgentBridge window or log."
+                          % idle_timeout())
         except Exception as exc:  # noqa: BLE001 — surface anything to the user
             self.error.emit(str(exc))
         finally:
