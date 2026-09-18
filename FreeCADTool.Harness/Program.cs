@@ -101,6 +101,14 @@ Check("create_gear (FCGear) responds correctly", tool.CreateGear("{\"teeth\":20,
 // ── import roundtrip ──
 Check("import step", tool.ImportFile("/out/test.step"), NoErr);
 
+// ── save (regression for issue #15: the old code read a bare-string result with Field(),
+//    which threw InvalidOperationException on a non-object; now the result is a dict and the
+//    saved path must be surfaced, never an empty Saved '') ──
+Check("save-as surfaces the path", tool.Document(FreeCADTool.DocumentAction.Save, null, "/test_saved.FCStd"), r =>
+    NoErr(r) && r.Contains("Saved '") && !r.Contains("Saved ''"));
+Check("save (no path) surfaces the path", tool.Document(FreeCADTool.DocumentAction.Save), r =>
+    NoErr(r) && r.Contains("Saved '") && !r.Contains("Saved ''"));
+
 // ── recompute / close (regression: must surface count/name, not empty) ──
 Check("recompute returns count", tool.Document(FreeCADTool.DocumentAction.Recompute), r => NoErr(r) && r.Contains("objects") && !r.StartsWith("Recomputed  "));
 Check("close returns name", tool.Document(FreeCADTool.DocumentAction.Close), r => NoErr(r) && r.Contains("Closed document '") && !r.Contains("Closed document ''"));

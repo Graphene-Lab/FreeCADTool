@@ -90,9 +90,12 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
     /// <summary>Format a double for Python (invariant).</summary>
     private static string N(double v) => v.ToString("R", CultureInfo.InvariantCulture);
 
-    /// <summary>Read a string field from an ExecResult's result element.</summary>
+    /// <summary>Read a string field from an ExecResult's result element. Returns null when the
+    /// result is absent or is not a JSON object — a bare string/number/bool result has no named
+    /// fields, and <c>TryGetProperty</c> would throw <c>InvalidOperationException</c> on those.</summary>
     private static string? Field(ExecResult r, string prop)
-        => r.Result.HasValue && r.Result.Value.TryGetProperty(prop, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : null;
+        => r.Result.HasValue && r.Result.Value.ValueKind == JsonValueKind.Object
+           && r.Result.Value.TryGetProperty(prop, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : null;
 
     // ─────────────────────────────────────────────────────────────────────
     // Connection / status
