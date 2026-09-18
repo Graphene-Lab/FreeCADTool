@@ -151,8 +151,8 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
             {
                 var target = string.IsNullOrWhiteSpace(path) ? null : SandboxPath.Resolve(path);
                 var code = target == null
-                    ? $"doc = FreeCAD.getDocument({Py(name)}) if {Py(name)} else FreeCAD.ActiveDocument\nif doc is None: raise ValueError('no document')\nif not doc.FileName: raise ValueError('document has no path; pass a path to save-as')\ndoc.save()\n_result_ = doc.FileName"
-                    : $"doc = FreeCAD.getDocument({Py(name)}) if {Py(name)} else FreeCAD.ActiveDocument\nif doc is None: raise ValueError('no document')\ndoc.saveAs({Py(target)})\n_result_ = doc.FileName";
+                    ? $"doc = FreeCAD.getDocument({Py(name)}) if {Py(name)} else FreeCAD.ActiveDocument\nif doc is None: raise ValueError('no document')\nif not doc.FileName: raise ValueError('document has no path; pass a path to save-as')\ndoc.save()\n_result_ = {{'path': doc.FileName}}"
+                    : $"doc = FreeCAD.getDocument({Py(name)}) if {Py(name)} else FreeCAD.ActiveDocument\nif doc is None: raise ValueError('no document')\ndoc.saveAs({Py(target)})\n_result_ = {{'path': doc.FileName}}";
                 var r = Run(code);
                 if (!r.Success) return Err(r, "save document")!;
                 var savedHost = Field(r, "path") ?? target ?? "";

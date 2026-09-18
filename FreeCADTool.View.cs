@@ -86,7 +86,7 @@ p = {PyJson(properties)}
 o = doc.getObject(p['object'])
 if o is None: raise ValueError('object not found')
 o.ViewObject.Visibility = bool(p.get('visible', True))
-_result_ = o.Name";
+_result_ = {{'result': o.Name}}";
                 var r = Run(code);
                 if (!r.Success) return Err(r, "set visibility")!;
                 return $"Visibility set for '{Field(r, "result")}'.";
@@ -114,7 +114,7 @@ p = {PyJson(properties)}
 o = doc.getObject(p['object'])
 if o is None: raise ValueError('object not found')
 o.ViewObject.ShapeColor = (float(p.get('r',0.8)), float(p.get('g',0.8)), float(p.get('b',0.8)))
-_result_ = o.Name";
+_result_ = {{'result': o.Name}}";
                 var r = Run(code);
                 if (!r.Success) return Err(r, "set color")!;
                 return $"Color set for '{Field(r, "result")}'.";
