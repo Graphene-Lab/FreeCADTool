@@ -73,6 +73,28 @@ start a bridge, or install an add-on by hand.
   a normal desktop notification, in your operating system's language (English, Italian, French,
   Spanish, German, Russian; English for any other language).
 
+### Why the auto-started FreeCAD is headless (and how to watch the work)
+
+When the tool starts FreeCAD for you, it starts a **headless** one — a FreeCAD with no window.
+This is deliberate, not a limitation.
+
+The tool's host, **AgentBridge, is a bridge**: the agent can be driven over its API by a client on
+a *different machine*, or run on a **server with no desktop environment** at all. A windowless
+FreeCAD is the only thing that works in every one of those cases — there may be no screen to draw
+on. So the automatic path never assumes a GUI.
+
+If you **want to see the agent work**, open both apps yourself on the same machine:
+
+1. Start **AgentBridge**.
+2. Open the **FreeCAD GUI**. The auto-installed chat workbench starts the bridge *inside that
+   visible window*, so the agent edits the geometry you see on screen (see
+   [Chat inside FreeCAD](#chat-inside-freecad)).
+
+Driving the agent from AgentBridge while FreeCAD is closed is the headless case: the work is real
+and saved to a file, but there is no window to show it in. To get a GUI bridge instead of the
+headless one, start the bridge yourself with `freecad startup_bridge.py` before the agent's first
+call (see [Starting the bridge yourself](#starting-the-bridge-yourself-optional)).
+
 ### If FreeCAD is not found
 
 If the tool cannot find FreeCAD, a notification asks you to install it. You can also point the
