@@ -31,7 +31,7 @@ public partial class FreeCADTool
     public enum PrimitiveKind { Box, Cylinder, Sphere, Cone, Torus, Wedge, Helix }
 
     /// <summary>3D view operations.</summary>
-    public enum ViewAction { Screenshot, Angle, Fit, Zoom, Visibility, DisplayMode, Color }
+    public enum ViewAction { Screenshot, Angle, Fit, Zoom, Visibility, DisplayMode, Color, Render }
 
     /// <summary>Boolean solid operations.</summary>
     public enum BooleanOperation { Fuse, Cut, Common }
