@@ -183,7 +183,7 @@ _result_ = {{'name': sk.Name}}",
     /// <param name="body">Target Body name; omit to use the sketch's parent body.</param>
     /// <param name="properties">Feature JSON. Pad/Pocket: {"length"(mm),"reversed"(bool)}. Revolve/Groove: {"angle"(deg,default 360),"axis":"V_Axis|H_Axis|N_Axis" of the profile sketch, default V_Axis}. Hole: {"depth","diameter","threaded"(bool)}. Loft: {"sections":[sketch names],"solid"(bool)}. Sweep: {"spine"(sketch/edge name)}.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The feature name, or "Error:".</returns>
+    /// <returns>The feature name with its validity and volume (mm³); if the shape is empty/invalid the result says so and how to fix it, or "Error:".</returns>
     public string Feature(FeatureAction action, string? sketch = null, string? body = null, string? properties = null, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.Feature: {action} from {sketch}");
@@ -233,10 +233,15 @@ try:
 except Exception:
     doc.abortTransaction()
     raise
-_result_ = {{'name': f.Name, 'valid': f.isValid() if hasattr(f,'isValid') else True}}";
+sh = getattr(f, 'Shape', None)
+_ok = sh is not None and not sh.isNull()
+_valid = bool(f.isValid()) if hasattr(f, 'isValid') else (_ok and bool(sh.isValid()))
+_result_ = {{'name': f.Name, 'valid': _valid, 'volume': float(sh.Volume) if _ok else 0.0}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "feature " + a)!;
-        return $"Created {a} '{Field(r, "name")}'.";
+        if (Field(r, "valid") == "False")
+            return $"Created {a} '{Field(r, "name")}' but the shape is INVALID (empty) — the profile sketch is likely not closed or has no valid profile. Fix the sketch and recompute.";
+        return $"Created {a} '{Field(r, "name")}' (valid=True, volume={Field(r, "volume")}).";
     }
 
     /// <summary>Pattern a feature. Linear (repeat along a direction), Polar (circular repeat), Mirror (reflect across a plane). The source feature must be in a Body.</summary>
@@ -296,7 +301,7 @@ _result_ = {{'name': f.Name}}";
     /// <param name="edges">JSON array of edge references, e.g. ["Edge1","Edge2"]. Omit to apply to all edges.</param>
     /// <param name="size">Fillet radius / chamfer size in mm.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The resulting feature name, or "Error:".</returns>
+    /// <returns>The resulting feature name with its validity and volume (mm³); if the op failed (e.g. size too large) the result says so, or "Error:".</returns>
     public string EdgeOp(EdgeOperation operation, string baseObject, string? edges = null, double size = 1.0, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.EdgeOp: {operation} on {baseObject}");
@@ -326,9 +331,13 @@ try:
 except Exception:
     doc.abortTransaction()
     raise
-_result_ = {{'name': f.Name, 'valid': f.Shape.isValid() if hasattr(f,'Shape') else True}}";
+sh = getattr(f, 'Shape', None)
+_ok = sh is not None and not sh.isNull()
+_result_ = {{'name': f.Name, 'valid': bool(sh.isValid()) if _ok else False, 'volume': float(sh.Volume) if _ok else 0.0}}";
         var r = Run(code);
         if (!r.Success) return Err(r, op)!;
-        return $"Created {op} '{Field(r, "name")}' (valid={Field(r, "valid")}).";
+        if (Field(r, "valid") == "False")
+            return $"Created {op} '{Field(r, "name")}' but the result is INVALID — the {op} size is likely too large for the edges. Reduce the size.";
+        return $"Created {op} '{Field(r, "name")}' (valid=True, volume={Field(r, "volume")}).";
     }
 }

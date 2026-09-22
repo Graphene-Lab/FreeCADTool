@@ -47,6 +47,34 @@ Check("pad volume=3000", tool.InspectObject("pad"), r =>
     return Math.Abs(d - 3000) < 1;
 });
 
+// ── H1: create/feature surface the kernel read-back (valid + volume) so the agent
+//    sees the truth without a follow-up inspect_object, and a failed feature is not
+//    reported as a silent success. ──
+Check("create_primitive reports valid+volume (no follow-up inspect)",
+    tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":20,\"Height\":30}", "boxm"),
+    r => NoErr(r) && r.Contains("valid=True") && r.Contains("volume=6000"));
+tool.CreateBody("vb");
+tool.Sketch(FreeCADTool.SketchAction.Create, "vsk", "vb", "XY_Plane");
+tool.Sketch(FreeCADTool.SketchAction.Rectangle, "vsk", properties: "{\"x\":0,\"y\":0,\"width\":10,\"height\":10}");
+Check("Feature pad reports valid+volume",
+    tool.Feature(FreeCADTool.FeatureAction.Pad, "vsk", "vb", "{\"length\":10}"),
+    r =>
+    {
+        if (!NoErr(r) || !r.Contains("valid=True")) return false;
+        var i = r.IndexOf("volume="); if (i < 0) return false;
+        var j = r.IndexOf(')', i);
+        var v = double.Parse(r.Substring(i + 7, j - (i + 7)), System.Globalization.CultureInfo.InvariantCulture);
+        return Math.Abs(v - 1000) < 1;
+    });
+// A pad from an OPEN (single-line) sketch must be reported INVALID, not as a silent
+// "Created pad" (the old code computed f.isValid() but dropped it from the result).
+tool.CreateBody("opb");
+tool.Sketch(FreeCADTool.SketchAction.Create, "opensk", "opb", "XY_Plane");
+tool.Sketch(FreeCADTool.SketchAction.Line, "opensk", properties: "{\"x1\":0,\"y1\":0,\"x2\":10,\"y2\":10}");
+Check("pad from open sketch reported INVALID (not silent success)",
+    tool.Feature(FreeCADTool.FeatureAction.Pad, "opensk", "opb", "{\"length\":5}"),
+    r => r.Contains("INVALID") && !r.Contains("valid=True"));
+
 // ── edit / transform ──
 Check("edit_object box Length=20", tool.EditObject("box", "{\"Length\":20}"), NoErr);
 Check("create box2", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "box2"), NoErr);
@@ -57,6 +85,14 @@ Check("create box3", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Len
 Check("fillet box3 all edges", tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "box3", size: 2.0), r => NoErr(r) && r.Contains("valid=True"));
 Check("create box4", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":20,\"Height\":20}", "box4"), NoErr);
 Check("chamfer box4 two edges", tool.EdgeOp(FreeCADTool.EdgeOperation.Chamfer, "box4", edges: "[\"Edge1\",\"Edge2\"]", size: 2.0), NoErr);
+
+// ── H2: EdgeOp surfaces the kernel read-back (volume) and flags an over-large op ──
+Check("create box5", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":20,\"Height\":20}", "box5"), NoErr);
+Check("EdgeOp fillet reports volume", tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "box5", size: 2.0),
+    r => NoErr(r) && r.Contains("valid=True") && r.Contains("volume="));
+Check("create box6", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":20,\"Height\":20}", "box6"), NoErr);
+Check("over-large fillet reported INVALID (not silent success)", tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "box6", size: 15.0),
+    r => r.Contains("INVALID") && !r.Contains("valid=True"));
 
 // ── revolve (default sketch vertical axis) ──
 Check("create body rev", tool.CreateBody("revb"), NoErr);

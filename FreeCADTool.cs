@@ -276,7 +276,7 @@ _result_ = {{'name': o.Name, 'label': o.Label, 'type': o.TypeId, 'properties': p
     /// <param name="properties">JSON of dimensions. Box: {"Length","Width","Height"}. Cylinder: {"Radius","Height","Angle"}. Sphere: {"Radius"}. Cone: {"Radius1","Radius2","Height","Angle"}. Torus: {"Radius1","Radius2","Angle1","Angle2","Angle"}. Wedge: {"X2","Y2","Z2","X3","Y3","Z3"}. Helix: {"Pitch","Height","Radius","Radius2","Angle","LocalCoord"}. All lengths in mm; angles in degrees. Omit keys to keep defaults.</param>
     /// <param name="name">Object name; auto-generated when omitted.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The created object name, or "Error:".</returns>
+    /// <returns>The created object name with its validity and volume (mm³), or "Error:".</returns>
     public string CreatePrimitive(PrimitiveKind kind, string? properties = null, string? name = null, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.CreatePrimitive: {kind}");
@@ -305,10 +305,12 @@ try:
 except Exception:
     doc.abortTransaction()
     raise
-_result_ = {{'name': o.Name, 'type': o.TypeId}}";
+sh = getattr(o, 'Shape', None)
+_ok = sh is not None and not sh.isNull()
+_result_ = {{'name': o.Name, 'type': o.TypeId, 'valid': bool(sh.isValid()) if _ok else False, 'volume': float(sh.Volume) if _ok else 0.0}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "create primitive")!;
-        return $"Created {k} '{Field(r, "name")}'.";
+        return $"Created {k} '{Field(r, "name")}' (valid={Field(r, "valid")}, volume={Field(r, "volume")}).";
     }
 
     /// <summary>Create any FreeCAD object by its type id (e.g. "Part::Box", "App::Part", "Spreadsheet::Sheet"). For primitives prefer create_primitive. properties is a JSON object of initial property values.</summary>

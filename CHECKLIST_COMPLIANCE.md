@@ -1,12 +1,16 @@
 # FreeCADTool — TOOL_CHECKLIST Compliance
 
 Checked 2026-09-15 against `AIOrchestrator/API/TOOL_CHECKLIST.md` (current version incl. the
-"Completion — compliance file" point). `FreeCADTool` is a pure-managed .NET agent tool that drives
+"Completion — compliance file" point); re-checked 2026-09-22 after the read-back improvement
+cycles (C-001/C-002 in [`IMPROVEMENT_LOG.md`](IMPROVEMENT_LOG.md)) — no checklist point changed
+from OK/N-A, the changes only enrich existing method results. `FreeCADTool` is a pure-managed .NET
+agent tool that drives
 an external FreeCAD instance over a local RPC bridge; it has no native or non-.NET dependencies of
 its own. It sets itself up: on first use it auto-starts a headless FreeCAD + the bundled bridge, and
 auto-installs the FCGear add-on on the first gear request, surfacing setup progress/failures as
 localized OS notifications via the shared `AIOrchestrator.SystemNotifier`. Verified end-to-end
-against a live headless FreeCAD 1.1.3 (41/41 harness checks pass, plus 10/10 field-test scenarios;
+against a live headless FreeCAD 1.1.3 (50/50 harness checks pass as of 2026-09-22, plus 10/10
+field-test scenarios;
 the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd` run).
 
 ## Release & layout (plugin tools)
@@ -35,6 +39,11 @@ the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd
 - OK — formats specified: lengths in mm, angles in degrees, JSON property keys and allowed enum values listed per method.
 - OK — cross-references: object/sketch/feature params say they come from `list_objects` / must be created first ("sketch must exist before adding geometry", "start with document(create)").
 - OK — errors are actionable (cause + detail) and prefixed `Error:`; no raw exceptions reach the agent.
+- OK — `create_primitive`, `Feature` and `EdgeOp` surface the kernel read-back (`valid` + `volume`
+  mm³) in their result, and report an explicit INVALID line (with the likely cause) when the built
+  shape is empty/failed rather than a silent success; the `<returns>` docs state this. This is an
+  outcome, not an internal — it does not name the bridge, the snippet, or `_result_`. See
+  [`IMPROVEMENT_LOG.md`](IMPROVEMENT_LOG.md) cycles C-001/C-002.
 - N/A — no `[[name]]` dynamic placeholders.
 
 ## Surface & sandbox
