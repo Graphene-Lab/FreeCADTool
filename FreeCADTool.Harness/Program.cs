@@ -80,6 +80,29 @@ Check("edit_object box Length=20", tool.EditObject("box", "{\"Length\":20}"), No
 Check("create box2", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "box2"), NoErr);
 Check("transform box2 move+rot+scale", tool.Transform("box2", position: "[5,0,0]", rotation: "[0,0,1,45]", scale: "[2,1,1]"), NoErr);
 
+// ── C-004: create_primitive optional position places the primitive in one call
+//    (no follow-up transform). The Placement must reflect the offset and the shape
+//    must still be valid. ──
+Check("create_primitive with position is valid",
+    tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "posbox", null, "[5,10,15]"),
+    r => NoErr(r) && r.Contains("valid=True"));
+Check("position reflected in the object Placement",
+    tool.InspectObject("posbox"),
+    r =>
+    {
+        if (r.StartsWith("Error:")) return false;
+        var pl = JsonDocument.Parse(r).RootElement.GetProperty("properties").GetProperty("Placement").GetString();
+        return pl != null && pl.Contains("5") && pl.Contains("10") && pl.Contains("15");
+    });
+Check("create_primitive without position stays at origin",
+    tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "origbox"),
+    r =>
+    {
+        if (!NoErr(r)) return false;
+        var pl = JsonDocument.Parse(tool.InspectObject("origbox")).RootElement.GetProperty("properties").GetProperty("Placement").GetString();
+        return pl != null && pl.Contains("Pos=(0,0,0)") && !pl.Contains("Pos=(5");
+    });
+
 // ── edge ops ──
 Check("create box3", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":20,\"Height\":20}", "box3"), NoErr);
 Check("fillet box3 all edges", tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "box3", size: 2.0), r => NoErr(r) && r.Contains("valid=True"));

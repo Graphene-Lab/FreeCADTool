@@ -147,6 +147,38 @@ use it; cross-version safe.
 
 ---
 
+## C-004 — Optional `position` on `create_primitive` (PROMOTE)
+
+**Hypothesis.** Primitives are always born at the origin, so placing one (e.g. a bolt at a hole
+location) costs a follow-up `transform_object`. An optional `position=[x,y,z]` (mm) on
+`create_primitive` collapses create+move into one call — the same round-trip-reduction theme as
+C-001. Optional param, low cost.
+
+**Change kind:** optional parameter on an existing method (no new method — §7). Placed **after**
+`docName` so existing positional calls still bind correctly.
+
+**Implementation.** After the properties loop and before `doc.recompute()`:
+`pos = {PyJson(position)}; if pos and len(pos) >= 3: from FreeCAD import Vector, Placement, Rotation; o.Placement = Placement(Vector(float(pos[0]), float(pos[1]), float(pos[2])), Rotation())`.
+The placement is set inside the same transaction as the create, so it is undone as one step.
+
+**Measured result (Windows 1.1.3):**
+- `create box posbox position=[5,10,15]` → `Created box 'posbox' (valid=True, volume=1000.0)`;
+  `inspect posbox` shows `Placement [Pos=(5,10,15), ...]` — the offset is applied in the create call
+  (**−1 RPC round-trip** vs create-then-transform).
+- `create box origbox` (no position) → `Placement [Pos=(0,0,0), ...]` — omitted position leaves the
+  primitive at the origin, exactly as before (no behavior change for existing callers).
+- Harness: **56/56 PASS** (53 + 3 new C-004 checks: position valid, position reflected in
+  Placement, no-position stays at origin).
+
+**Cross-version (0.20.2 WSL, `freecadcmd` probe):** `Placement(Vector(5,10,15), Rotation())` on a
+`Part::Box` → `Placement.Base=(5,10,15)`, `isValid=True`, `Volume≈1000`, `BoundBox` origin
+`(5,10,15)`. Identical to 1.1.3. API-stable across 0.20.2 ↔ 1.1.3.
+
+**Decision: PROMOTE.** Collapses create+move to one call; opt-in so existing callers are unaffected;
+cross-version safe; no new surface.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so
@@ -177,10 +209,6 @@ needed, `inspect_object` already gives it.)
 
 ## Open hypotheses (not yet tested — queue)
 
-- **H-next: `position`/`placement` on `create_primitive` (optional).** Primitives are always born at
-  the origin, so positioning one costs a follow-up `transform`. An optional `position=[x,y,z]`
-  (and maybe `rotation`) on `create_primitive` collapses create+move to one call — same round-trip
-  reduction theme as C-001. Optional param, low cost. Not started.
 - **H-next: face descriptors on `inspect_object` (optional).** The C-003 edge-descriptor idea applied
   to faces (ref/area/center/normal), to support face selection and any future "up to face" feature.
   Same opt-in + cap pattern. Not started.

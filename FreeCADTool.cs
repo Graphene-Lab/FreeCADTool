@@ -288,8 +288,9 @@ _result_ = res";
     /// <param name="properties">JSON of dimensions. Box: {"Length","Width","Height"}. Cylinder: {"Radius","Height","Angle"}. Sphere: {"Radius"}. Cone: {"Radius1","Radius2","Height","Angle"}. Torus: {"Radius1","Radius2","Angle1","Angle2","Angle"}. Wedge: {"X2","Y2","Z2","X3","Y3","Z3"}. Helix: {"Pitch","Height","Radius","Radius2","Angle","LocalCoord"}. All lengths in mm; angles in degrees. Omit keys to keep defaults.</param>
     /// <param name="name">Object name; auto-generated when omitted.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
+    /// <param name="position">Optional [x,y,z] in mm to place the primitive at (avoids a follow-up transform). Omit to leave it at the origin.</param>
     /// <returns>The created object name with its validity and volume (mm³), or "Error:".</returns>
-    public string CreatePrimitive(PrimitiveKind kind, string? properties = null, string? name = null, string? docName = null)
+    public string CreatePrimitive(PrimitiveKind kind, string? properties = null, string? name = null, string? docName = null, string? position = null)
     {
         Log.LogStep($"FreeCADTool.CreatePrimitive: {kind}");
         var k = kind.ToString().ToLowerInvariant();
@@ -312,6 +313,10 @@ try:
     o = doc.addObject({Py(typeId)}, {Py(name)} or {Py(k)})
     for k, v in {PyJson(properties)}.items():
         if hasattr(o, k): setattr(o, k, v)
+    pos = {PyJson(position)}
+    if pos and len(pos) >= 3:
+        from FreeCAD import Vector, Placement, Rotation
+        o.Placement = Placement(Vector(float(pos[0]), float(pos[1]), float(pos[2])), Rotation())
     doc.recompute()
     doc.commitTransaction()
 except Exception:
