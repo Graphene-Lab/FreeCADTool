@@ -94,6 +94,35 @@ Check("create box6", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Len
 Check("over-large fillet reported INVALID (not silent success)", tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "box6", size: 15.0),
     r => r.Contains("INVALID") && !r.Contains("valid=True"));
 
+// ── C-003: inspect_object optional per-edge descriptors (edge selection by geometry) ──
+Check("inspect edgeDetails returns per-edge descriptors",
+    tool.InspectObject("boxm", null, true),
+    r =>
+    {
+        if (r.StartsWith("Error:")) return false;
+        var ed = JsonDocument.Parse(r).RootElement.GetProperty("edges_detail");
+        if (ed.GetProperty("total").GetInt32() != 12) return false;
+        bool has10 = false, has20 = false, has30 = false;
+        foreach (var it in ed.GetProperty("items").EnumerateArray())
+        {
+            var L = it.GetProperty("length").GetDouble();
+            if (Math.Abs(L - 10) < 0.01) has10 = true;
+            if (Math.Abs(L - 20) < 0.01) has20 = true;
+            if (Math.Abs(L - 30) < 0.01) has30 = true;
+        }
+        return has10 && has20 && has30;
+    });
+Check("inspect without edgeDetails omits edges_detail",
+    tool.InspectObject("boxm"),
+    r => NoErr(r) && !r.Contains("edges_detail"));
+// End-to-end: choose the vertical edge (length 30) by its descriptor and fillet exactly it.
+string chosenEdge = null;
+foreach (var it in JsonDocument.Parse(tool.InspectObject("boxm", null, true)).RootElement.GetProperty("edges_detail").GetProperty("items").EnumerateArray())
+    if (Math.Abs(it.GetProperty("length").GetDouble() - 30) < 0.01) { chosenEdge = it.GetProperty("ref").GetString(); break; }
+Check("fillet the edge chosen by its descriptor",
+    chosenEdge != null ? tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "boxm", edges: "[\"" + chosenEdge + "\"]", size: 2.0) : "no edge chosen",
+    r => NoErr(r) && r.Contains("valid=True"));
+
 // ── revolve (default sketch vertical axis) ──
 Check("create body rev", tool.CreateBody("revb"), NoErr);
 Check("sketch create rev (XZ)", tool.Sketch(FreeCADTool.SketchAction.Create, "revsk", "revb", "XZ_Plane"), NoErr);

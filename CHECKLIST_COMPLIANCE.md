@@ -9,7 +9,7 @@ an external FreeCAD instance over a local RPC bridge; it has no native or non-.N
 its own. It sets itself up: on first use it auto-starts a headless FreeCAD + the bundled bridge, and
 auto-installs the FCGear add-on on the first gear request, surfacing setup progress/failures as
 localized OS notifications via the shared `AIOrchestrator.SystemNotifier`. Verified end-to-end
-against a live headless FreeCAD 1.1.3 (50/50 harness checks pass as of 2026-09-22, plus 10/10
+against a live headless FreeCAD 1.1.3 (53/53 harness checks pass as of 2026-09-22, plus 10/10
 field-test scenarios;
 the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd` run).
 
@@ -44,6 +44,9 @@ the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd
   shape is empty/failed rather than a silent success; the `<returns>` docs state this. This is an
   outcome, not an internal — it does not name the bridge, the snippet, or `_result_`. See
   [`IMPROVEMENT_LOG.md`](IMPROVEMENT_LOG.md) cycles C-001/C-002.
+- OK — `inspect_object` gained an **optional** `edgeDetails` param (no new method, §7) returning
+  per-edge `ref`/`length` (mm)/`midpoint` `[x,y,z]` so an edge can be chosen for fillet/chamfer by
+  geometry; documented in `<param>`, opt-in (lean output by default), capped at 128 edges. Cycle C-003.
 - N/A — no `[[name]]` dynamic placeholders.
 
 ## Surface & sandbox

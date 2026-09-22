@@ -115,6 +115,38 @@ crash-on-null the old code had.
 
 ---
 
+## C-003 — Per-edge descriptors on `inspect_object` (PROMOTE)
+
+**Hypothesis.** The top remaining agent friction is **edge selection** for `fillet`/`chamfer`: the
+agent must pass `["Edge1","Edge3"]` but has no way to know which `EdgeN` is which, so it guesses.
+An **optional** `edgeDetails` flag on `inspect_object` returning per-edge `ref`/`length`/`midpoint`
+lets the agent pick an edge by its geometry. Cost: opt-in only, capped at 128 edges.
+
+**Change kind:** optional parameter on an existing method (no new method — §7). Placed **after**
+`docName` so existing positional calls (`InspectObject("pipe","t2")`) still bind correctly.
+
+**Evidence / measured result (Windows 1.1.3):**
+- `inspect boxm (10×20×30, edgeDetails=true)` → `edges_detail.total=12`, items carry
+  `ref`/`length`/`midpoint`; distinct lengths exactly {10, 20, 30}.
+- `inspect boxm` (default) → **no** `edges_detail` key (output stays lean when not asked).
+- **End-to-end:** read the descriptors, pick the vertical edge (length 30 → `Edge1`), then
+  `fillet boxm edges=["Edge1"] size=2` → `valid=True, volume=5974.2` (6000 minus one filleted
+  edge). The descriptor→fillet workflow closes without guessing.
+- Harness: **53/53 PASS** (50 + 3 new C-003 checks).
+
+**Cross-version (0.20.2 WSL, direct probe):** `e.CenterOfMass` and `e.Length` behave identically —
+12 edges, distinct lengths [10,20,30], same descriptor shape. API-stable across 0.20.2 ↔ 1.1.3.
+
+**Design notes.** Cap = first 128 edges with `total`/`returned` reported, so a thousand-edge shape
+cannot blow up the agent's context. `midpoint` uses the edge's `CenterOfMass` (robust for lines and
+curves alike). The `ref` is the exact `EdgeN` string `EdgeOp` consumes, so descriptors map 1:1 to
+fillet/chamfer input.
+
+**Decision: PROMOTE.** Unlocks deterministic edge selection; opt-in so no cost to callers that don't
+use it; cross-version safe.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so
@@ -145,12 +177,15 @@ needed, `inspect_object` already gives it.)
 
 ## Open hypotheses (not yet tested — queue)
 
-- **H-next: per-edge descriptors for fillet/chamfer.** The agent must guess edge indices
-  ("Edge1"…). An optional param on `inspect_object` returning per-edge index/length/midpoint
-  would let it pick edges intelligently. Larger scope; would be an optional param (allowed by §7),
-  not a new method. Not started.
+- **H-next: `position`/`placement` on `create_primitive` (optional).** Primitives are always born at
+  the origin, so positioning one costs a follow-up `transform`. An optional `position=[x,y,z]`
+  (and maybe `rotation`) on `create_primitive` collapses create+move to one call — same round-trip
+  reduction theme as C-001. Optional param, low cost. Not started.
+- **H-next: face descriptors on `inspect_object` (optional).** The C-003 edge-descriptor idea applied
+  to faces (ref/area/center/normal), to support face selection and any future "up to face" feature.
+  Same opt-in + cap pattern. Not started.
 - **H-next: `get_complex_part` rating.** The library exposes no rating; ranking falls back to size.
-  If the library ever ships a rating, prefer it inside the tier. Blocked on upstream data.
+  If the library ever ships one, prefer it inside the tier. Blocked on upstream data.
 
 ---
 

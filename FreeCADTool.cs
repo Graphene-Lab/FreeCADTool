@@ -228,10 +228,12 @@ public partial class FreeCADTool : BaseAgentTool, IFileTool
     /// <summary>Inspect one object: its type, properties, and shape metrics (volume, area, validity, vertex/edge/face counts). Use to check a feature built correctly.</summary>
     /// <param name="name">Object name from list_objects.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>Detailed object info as JSON, or "Error:".</returns>
-    public string InspectObject(string name, string? docName = null)
+    /// <param name="edgeDetails">When true, also return a per-edge descriptor list (ref, length in mm, midpoint [x,y,z]) so a specific edge can be chosen for fillet/chamfer by its geometry instead of guessing the EdgeN index. Capped at the first 128 edges.</param>
+    /// <returns>Detailed object info as JSON (plus edges_detail when requested), or "Error:".</returns>
+    public string InspectObject(string name, string? docName = null, bool edgeDetails = false)
     {
-        Log.LogStep($"FreeCADTool.InspectObject: {name}");
+        Log.LogStep($"FreeCADTool.InspectObject: {name}{(edgeDetails ? " (+edges)" : "")}");
+        var want = edgeDetails ? "True" : "False";
         var code = $@"import json
 doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
 if doc is None: raise ValueError('no document')
@@ -249,10 +251,20 @@ for p in o.PropertiesList:
     except Exception:
         props[p] = '<unreadable>'
 shape = None
+edges_detail = None
 if hasattr(o, 'Shape') and not o.Shape.isNull():
     sh = o.Shape
     shape = {{'type': sh.ShapeType, 'volume': sh.Volume, 'area': sh.Area, 'valid': sh.isValid(), 'closed': sh.isClosed(), 'faces': len(sh.Faces), 'edges': len(sh.Edges), 'vertexes': len(sh.Vertexes)}}
-_result_ = {{'name': o.Name, 'label': o.Label, 'type': o.TypeId, 'properties': props, 'shape': shape}}";
+    if {want}:
+        items = []
+        for i, e in enumerate(sh.Edges[:128]):
+            c = e.CenterOfMass
+            items.append({{'ref': 'Edge%d' % (i + 1), 'length': round(float(e.Length), 4), 'midpoint': [round(float(c.x), 3), round(float(c.y), 3), round(float(c.z), 3)]}})
+        edges_detail = {{'total': len(sh.Edges), 'returned': len(items), 'items': items}}
+res = {{'name': o.Name, 'label': o.Label, 'type': o.TypeId, 'properties': props, 'shape': shape}}
+if {want}:
+    res['edges_detail'] = edges_detail
+_result_ = res";
         var r = Run(code);
         if (!r.Success) return Err(r, "inspect object")!;
         return JsonSerializer.Serialize(r.Result.Value);
