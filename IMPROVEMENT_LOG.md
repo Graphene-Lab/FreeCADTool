@@ -423,6 +423,44 @@ same.
 
 ---
 
+## C-010 — Cross-section measurement: `analyze(Section, …, plane)` (PROMOTE — stolen idea)
+
+**Origin.** Cross-section area/perimeter is a standard measurement in the similar CAD-agent projects
+reviewed (section views for wall-thickness and profile checks). It is a natural, read-only extension of
+the C-008 `analyze` method — same method, one new enum member + one optional param, no new method
+(§7 few-methods rule).
+
+**Hypothesis.** A plane cut through a solid, reporting the section **area** (mm²) and **perimeter**
+(mm), gives the operator the wall-thickness / profile read the tool lacked, computed by a single
+deterministic kernel call that is version-agnostic and handles hollow sections (annulus) correctly.
+
+**Change kind:** new `AnalysisKind.Section` member + a new optional `plane` param on the existing
+`analyze` method (`{"normal":[x,y,z],"d":mm}`; e.g. `{"normal":[0,0,1],"d":15}` = horizontal cut at
+z=15). No new method.
+
+**Evidence (live probes, both versions):**
+- 1.1.3: `box.slice(Vector(0,0,1), 15)` → 1 wire (len 60); `Part.Face(wires)` → area 200. Hollow
+  pipe (outer r=10, inner r=6) → 2 wires (62.83 / 37.70); `Part.Face(wires)` → **201.06** (correct
+  annulus — `Part.Face` treats the wires as outer+holes automatically).
+- 0.20.2 WSL: identical (2 wires, `Face(wires)` 201.062, box 200/60). `slice` + `Part.Face` are
+  version-agnostic across the whole target range.
+
+**Implementation.** `Section` snippet: `wires = sa.slice(n, d)`; if empty → `loops=0` (no
+intersection); else `f = Part.Face(wires)` → `area=f.Area`, `perimeter=sum(w.Length)`, `loops=len(wires)`.
+Guards: missing object / null shape / missing-or-zero normal → named `Error:`. (Caught during the build:
+the snippet needs `import json` because `PyJson` emits `json.loads(...)` — the other `PyJson` users
+already import it.)
+
+**Measured result:** harness **76/76 PASS** (72 + 4 new Section checks: box 200/60, hollow pipe
+201.06 with 2 loops, plane-misses-solid → "no intersection", missing-plane → Error).
+
+**Decision: PROMOTE.** A standard, generally-useful read-only measurement (wall thickness, profile at a
+point, section inputs for structural checks), one enum member + one optional param, cross-version
+verified, hollow-section-correct. Complements the C-008 kinds: Interfere/Distance relate two objects,
+CenterOfMass is a whole-solid property, Section is a *local* property at a chosen plane.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so

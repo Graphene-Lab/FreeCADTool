@@ -483,17 +483,20 @@ _result_ = {{'name': o.Name, 'valid': res.isValid(), 'volume': res.Volume}}";
     // Spatial analysis (read-only kernel measurements)
     // ─────────────────────────────────────────────────────────────────────
 
-    /// <summary>Measure objects with the CAD kernel without changing the model. Interfere: whether two solids overlap and by how much (assembly collision check). Distance: the minimum gap between two objects and their closest points (clearance check). CenterOfMass: an object's centroid, volume and overall bounding-box size (balance and footprint). Read-only — safe to call anytime.</summary>
-    /// <param name="kind">Interfere | Distance | CenterOfMass.</param>
-    /// <param name="objectName">First object (the subject for CenterOfMass), from list_objects.</param>
+    /// <summary>Measure objects with the CAD kernel without changing the model. Interfere: whether two solids overlap and by how much (assembly collision check). Distance: the minimum gap between two objects and their closest points (clearance check). CenterOfMass: an object's centroid, volume and overall bounding-box size (balance and footprint). Section: the cross-section of a solid cut by a plane — its area and perimeter (wall-thickness / profile check). Read-only — safe to call anytime.</summary>
+    /// <param name="kind">Interfere | Distance | CenterOfMass | Section.</param>
+    /// <param name="objectName">First object (the subject for CenterOfMass/Section), from list_objects.</param>
     /// <param name="otherName">Second object; required for Interfere and Distance.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The measurement (overlap volume / gap in mm / centroid+size), or "Error:".</returns>
-    public string Analyze(AnalysisKind kind, string objectName, string? otherName = null, string? docName = null)
+    /// <param name="plane">Cut plane for Section; required for Section. JSON {"normal":[x,y,z],"d":mm} — the plane through point d*normal with that normal. e.g. {"normal":[0,0,1],"d":15} is a horizontal cut at z=15.</param>
+    /// <returns>The measurement (overlap volume / gap in mm / centroid+size / section area+perimeter), or "Error:".</returns>
+    public string Analyze(AnalysisKind kind, string objectName, string? otherName = null, string? docName = null, string? plane = null)
     {
         Log.LogStep($"FreeCADTool.Analyze: {kind} {objectName}{(string.IsNullOrWhiteSpace(otherName) ? "" : " vs " + otherName)}");
         if ((kind == AnalysisKind.Interfere || kind == AnalysisKind.Distance) && string.IsNullOrWhiteSpace(otherName))
             return $"Error: '{kind}' needs a second object name.";
+        if (kind == AnalysisKind.Section && string.IsNullOrWhiteSpace(plane))
+            return "Error: 'Section' needs a plane, e.g. {\"normal\":[0,0,1],\"d\":15}.";
 
         var code = kind switch
         {
@@ -532,6 +535,27 @@ com = sa.CenterOfGravity
 bb = sa.BoundBox
 _result_ = {{'com': [round(com.x, 4), round(com.y, 4), round(com.z, 4)], 'volume': float(sa.Volume), 'bbox': [round(bb.XLength, 4), round(bb.YLength, 4), round(bb.ZLength, 4)]}}",
 
+            AnalysisKind.Section => $@"import json, Part
+from FreeCAD import Vector
+doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
+if doc is None: raise ValueError('no document')
+a = doc.getObject({Py(objectName)})
+if a is None: raise ValueError('object not found: ' + {Py(objectName)})
+sa = getattr(a, 'Shape', None)
+if sa is None or sa.isNull(): raise ValueError('object has no shape: ' + {Py(objectName)})
+pl = {PyJson(plane)}
+nv = pl.get('normal')
+if not nv or len(nv) < 3: raise ValueError('plane needs normal [x,y,z]')
+n = Vector(float(nv[0]), float(nv[1]), float(nv[2]))
+if n.Length < 1e-9: raise ValueError('plane normal is zero')
+d = float(pl.get('d', 0.0))
+wires = sa.slice(n, d)
+if not wires:
+    _result_ = {{'area': 0.0, 'perimeter': 0.0, 'loops': 0}}
+else:
+    f = Part.Face(wires)
+    _result_ = {{'area': float(f.Area), 'perimeter': float(sum(w.Length for w in wires)), 'loops': len(wires)}}",
+
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
         var r = Run(code);
@@ -543,6 +567,9 @@ _result_ = {{'com': [round(com.x, 4), round(com.y, 4), round(com.z, 4)], 'volume
                 : $"Objects '{objectName}' and '{otherName}' do not interfere (no overlap).",
             AnalysisKind.Distance => $"Minimum distance between '{objectName}' and '{otherName}': {Field(r, "distance")} mm (closest: {objectName} at {Field(r, "pointA")}, {otherName} at {Field(r, "pointB")}).",
             AnalysisKind.CenterOfMass => $"Center of mass of '{objectName}': {Field(r, "com")} mm; volume {Field(r, "volume")} mm³; overall size {Field(r, "bbox")} mm.",
+            AnalysisKind.Section => Field(r, "loops") == "0"
+                ? $"Cross-section of '{objectName}' at the given plane: no intersection (the plane misses the solid)."
+                : $"Cross-section of '{objectName}': area {Field(r, "area")} mm², perimeter {Field(r, "perimeter")} mm ({Field(r, "loops")} loop(s)).",
             _ => "Error: unsupported analysis."
         };
     }

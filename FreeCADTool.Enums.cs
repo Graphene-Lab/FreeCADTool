@@ -37,7 +37,7 @@ public partial class FreeCADTool
     public enum BooleanOperation { Fuse, Cut, Common }
 
     /// <summary>Read-only spatial/physical analysis operations (no model change).</summary>
-    public enum AnalysisKind { Interfere, Distance, CenterOfMass }
+    public enum AnalysisKind { Interfere, Distance, CenterOfMass, Section }
 }
 
 #pragma warning restore CS1591

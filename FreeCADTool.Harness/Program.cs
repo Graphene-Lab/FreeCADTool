@@ -111,6 +111,41 @@ Check("analyze center of mass works on a fused Compound (C-009 fix)",
         return Math.Abs(x - 7.5) < 0.01 && Math.Abs(y - 12.5) < 0.01;
     });
 
+// ── C-010: cross-section measurement (Section kind). A plane cut through a solid gives its
+//    section area + perimeter — the wall-thickness / profile read. slice(normal,d) + Part.Face(wires)
+//    handles hollow sections (annulus) correctly; verified 1.1.3 and 0.20.2. ──
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":10,\"Height\":30}", "sec_box");
+Check("analyze section: box at z=15 -> area 200, perimeter 60",
+    tool.Analyze(FreeCADTool.AnalysisKind.Section, "sec_box", null, null, "{\"normal\":[0,0,1],\"d\":15}"),
+    r =>
+    {
+        if (!NoErr(r) || !r.Contains("area")) return false;
+        var ai = r.IndexOf("area "); var aj = r.IndexOf(" mm", ai);
+        var area = double.Parse(r.Substring(ai + 5, aj - (ai + 5)), System.Globalization.CultureInfo.InvariantCulture);
+        var pi = r.IndexOf("perimeter "); var pj = r.IndexOf(" mm", pi);
+        var per = double.Parse(r.Substring(pi + 10, pj - (pi + 10)), System.Globalization.CultureInfo.InvariantCulture);
+        return Math.Abs(area - 200) < 0.5 && Math.Abs(per - 60) < 0.5;
+    });
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Cylinder, "{\"Radius\":10,\"Height\":30}", "sec_out");
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Cylinder, "{\"Radius\":6,\"Height\":32}", "sec_in");
+tool.Transform("sec_in", position: "[0,0,-1]");
+tool.Boolean(FreeCADTool.BooleanOperation.Cut, "[\"sec_out\",\"sec_in\"]", "sec_pipe");
+Check("analyze section: hollow pipe at z=15 -> annulus area ~201, 2 loops",
+    tool.Analyze(FreeCADTool.AnalysisKind.Section, "sec_pipe", null, null, "{\"normal\":[0,0,1],\"d\":15}"),
+    r =>
+    {
+        if (!NoErr(r) || !r.Contains("2 loop")) return false;
+        var ai = r.IndexOf("area "); var aj = r.IndexOf(" mm", ai);
+        var area = double.Parse(r.Substring(ai + 5, aj - (ai + 5)), System.Globalization.CultureInfo.InvariantCulture);
+        return Math.Abs(area - 201.06) < 0.5;
+    });
+Check("analyze section: plane misses the solid -> no intersection",
+    tool.Analyze(FreeCADTool.AnalysisKind.Section, "sec_box", null, null, "{\"normal\":[0,0,1],\"d\":100}"),
+    r => NoErr(r) && r.Contains("no intersection"));
+Check("analyze section without a plane errors",
+    tool.Analyze(FreeCADTool.AnalysisKind.Section, "sec_box"),
+    r => r.StartsWith("Error:"));
+
 // PartDesign: body + sketch + pad
 Check("create body", tool.CreateBody("b"), NoErr);
 Check("sketch create", tool.Sketch(FreeCADTool.SketchAction.Create, "sk", "b", "XY_Plane"), NoErr);
