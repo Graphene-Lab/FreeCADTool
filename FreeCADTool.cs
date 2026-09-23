@@ -289,7 +289,7 @@ _result_ = res";
     /// <param name="name">Object name; auto-generated when omitted.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
     /// <param name="position">Optional [x,y,z] in mm to place the primitive at (avoids a follow-up transform). Omit to leave it at the origin.</param>
-    /// <returns>The created object name with its validity and volume (mm³), or "Error:".</returns>
+    /// <returns>The created object name with its validity and volume (mm³); any property names that do not exist on the object are reported as ignored, or "Error:".</returns>
     public string CreatePrimitive(PrimitiveKind kind, string? properties = null, string? name = null, string? docName = null, string? position = null)
     {
         Log.LogStep($"FreeCADTool.CreatePrimitive: {kind}");
@@ -311,8 +311,10 @@ if doc is None: raise ValueError('no document')
 doc.openTransaction('create primitive')
 try:
     o = doc.addObject({Py(typeId)}, {Py(name)} or {Py(k)})
+    _ignored = []
     for k, v in {PyJson(properties)}.items():
         if hasattr(o, k): setattr(o, k, v)
+        else: _ignored.append(k)
     pos = {PyJson(position)}
     if pos and len(pos) >= 3:
         from FreeCAD import Vector, Placement, Rotation
@@ -324,10 +326,12 @@ except Exception:
     raise
 sh = getattr(o, 'Shape', None)
 _ok = sh is not None and not sh.isNull()
-_result_ = {{'name': o.Name, 'type': o.TypeId, 'valid': bool(sh.isValid()) if _ok else False, 'volume': float(sh.Volume) if _ok else 0.0}}";
+_result_ = {{'name': o.Name, 'type': o.TypeId, 'valid': bool(sh.isValid()) if _ok else False, 'volume': float(sh.Volume) if _ok else 0.0, 'ignored': ', '.join(_ignored)}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "create primitive")!;
-        return $"Created {k} '{Field(r, "name")}' (valid={Field(r, "valid")}, volume={Field(r, "volume")}).";
+        var ign = Field(r, "ignored");
+        var warn = string.IsNullOrEmpty(ign) ? "" : $" Ignored unknown properties: {ign}.";
+        return $"Created {k} '{Field(r, "name")}' (valid={Field(r, "valid")}, volume={Field(r, "volume")})." + warn;
     }
 
     /// <summary>Create any FreeCAD object by its type id (e.g. "Part::Box", "App::Part", "Spreadsheet::Sheet"). For primitives prefer create_primitive. properties is a JSON object of initial property values.</summary>
@@ -335,7 +339,7 @@ _result_ = {{'name': o.Name, 'type': o.TypeId, 'valid': bool(sh.isValid()) if _o
     /// <param name="name">Object name; auto-generated when omitted.</param>
     /// <param name="properties">JSON object of initial property values.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The created object name, or "Error:".</returns>
+    /// <returns>The created object name; any property names that do not exist on the object are reported as ignored, or "Error:".</returns>
     public string CreateObject(string typeId, string? name = null, string? properties = null, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.CreateObject: {typeId}");
@@ -345,24 +349,28 @@ if doc is None: raise ValueError('no document')
 doc.openTransaction('create object')
 try:
     o = doc.addObject({Py(typeId)}, {Py(name)} or '')
+    _ignored = []
     for k, v in {PyJson(properties)}.items():
         if hasattr(o, k): setattr(o, k, v)
+        else: _ignored.append(k)
     doc.recompute()
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
     raise
-_result_ = {{'name': o.Name, 'type': o.TypeId}}";
+_result_ = {{'name': o.Name, 'type': o.TypeId, 'ignored': ', '.join(_ignored)}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "create object")!;
-        return $"Created {typeId} '{Field(r, "name")}'.";
+        var ign = Field(r, "ignored");
+        var warn = string.IsNullOrEmpty(ign) ? "" : $" Ignored unknown properties: {ign}.";
+        return $"Created {typeId} '{Field(r, "name")}'." + warn;
     }
 
     /// <summary>Set properties on an existing object. properties is a JSON object of property name → value (only properties that exist on the object are applied). Undoable.</summary>
     /// <param name="name">Object name from list_objects.</param>
     /// <param name="properties">JSON object of property values, e.g. {"Length": 20, "Label2": "bracket"}.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>Confirmation or "Error:".</returns>
+    /// <returns>Confirmation; any property names that do not exist on the object are reported as ignored, or "Error:".</returns>
     public string EditObject(string name, string properties, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.EditObject: {name}");
@@ -373,17 +381,21 @@ o = doc.getObject({Py(name)})
 if o is None: raise ValueError('object not found')
 doc.openTransaction('edit')
 try:
+    _ignored = []
     for k, v in {PyJson(properties)}.items():
         if hasattr(o, k): setattr(o, k, v)
+        else: _ignored.append(k)
     doc.recompute()
     doc.commitTransaction()
 except Exception:
     doc.abortTransaction()
     raise
-_result_ = True";
+_result_ = {{'ignored': ', '.join(_ignored)}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "edit object")!;
-        return $"Updated '{name}'.";
+        var ign = Field(r, "ignored");
+        var warn = string.IsNullOrEmpty(ign) ? "" : $" Ignored unknown properties: {ign}.";
+        return $"Updated '{name}'." + warn;
     }
 
     /// <summary>Move, rotate and/or scale an object via its placement. position=[x,y,z] mm; rotation=[axisX,axisY,axisZ,angleDeg]; scale=[sx,sy,sz] (uniform if one value). Any omitted component is left unchanged.</summary>

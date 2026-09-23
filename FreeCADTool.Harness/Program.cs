@@ -103,6 +103,22 @@ Check("create_primitive without position stays at origin",
         return pl != null && pl.Contains("Pos=(0,0,0)") && !pl.Contains("Pos=(5");
     });
 
+// ── C-006: property-blob methods surface the keys the kernel ignored. A typo'd property
+//    used to silently leave the object at its default (S2 wrong-dimension); now the bad key
+//    is named so the agent can fix it. ──
+Check("create_primitive reports a typo'd property as ignored",
+    tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Lenght\":99,\"Width\":20}", "typobox"),
+    r => NoErr(r) && r.Contains("Ignored unknown properties:") && r.Contains("Lenght"));
+Check("create_primitive with all-valid properties reports no ignored",
+    tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "okbox"),
+    r => NoErr(r) && !r.Contains("Ignored"));
+Check("edit_object reports a typo'd property as ignored",
+    tool.EditObject("okbox", "{\"Lenght\":50,\"Height\":40}"),
+    r => NoErr(r) && r.Contains("Ignored unknown properties:") && r.Contains("Lenght"));
+Check("create_object reports a typo'd property as ignored",
+    tool.CreateObject("Part::Box", "co1", "{\"Lenght\":7}"),
+    r => NoErr(r) && r.Contains("Ignored unknown properties:") && r.Contains("Lenght"));
+
 // ── edge ops ──
 Check("create box3", tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":20,\"Height\":20}", "box3"), NoErr);
 Check("fillet box3 all edges", tool.EdgeOp(FreeCADTool.EdgeOperation.Fillet, "box3", size: 2.0), r => NoErr(r) && r.Contains("valid=True"));

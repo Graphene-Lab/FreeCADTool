@@ -223,6 +223,48 @@ method-specific tested trigger (the trigger itself is order-dependent in the ker
 
 ---
 
+## C-006 — Surface the property keys the kernel ignored (PROMOTE)
+
+**Hypothesis.** The property-blob methods (`create_primitive`, `edit_object`, `create_object`) apply
+properties with `for k,v in props.items(): if hasattr(o,k): setattr(o,k,v)` — a key that does not
+exist on the object is **silently dropped**. A typo (`"Lenght"` for `"Length"`) leaves the object at
+its **default** dimension while the agent believes it set the requested value: a silent **S2
+wrong-dimension** failure. Surfacing the ignored keys names the bad property so the agent can fix it.
+This is the read-back principle applied to the **input** (what the kernel accepted vs what was asked),
+the tool-side contribution the methodology's ProCAD note calls for ("a method doc that states its
+preconditions" → here, a result that states what was NOT applied).
+
+**Change kind:** richer result on existing methods (no new method, no new param).
+
+**Evidence (live probes, both versions).**
+- `{"Lenght":99,"Width":20}` on a `Part::Box` → `Length=10.0` (the **default**, NOT 99),
+  `Width=20` applied, `ignored=['Lenght']`. `hasattr(box,'Lenght')=False`. Confirmed identical on
+  **1.1.3 and 0.20.2** — `hasattr` + list-join are version-agnostic.
+
+**Implementation.** Each of the three methods now collects the keys where `not hasattr(o,k)` into
+`_ignored` and returns `', '.join(_ignored)` in `_result_`; the C# appends
+`" Ignored unknown properties: <keys>."` to the result string when the list is non-empty. The
+`<returns>` docs state this.
+
+**Measured result (Windows 1.1.3):**
+- `create_primitive box {"Lenght":99,"Width":20}` → `Created box 'typobox' (valid=True,
+  volume=2000.0). Ignored unknown properties: Lenght.` — the agent now sees the typo and that the
+  volume reflects the default Length, not 99.
+- `create_primitive box {"Length":10,"Width":10,"Height":10}` → no "Ignored" (all keys valid).
+- `edit_object okbox {"Lenght":50,"Height":40}` → `Updated 'okbox'. Ignored unknown properties: Lenght.`
+- `create_object Part::Box {"Lenght":7}` → `Created Part::Box 'co1'. Ignored unknown properties: Lenght.`
+- Harness: **62/62 PASS** (58 + 4 new C-006 checks: typo reported on all three methods + all-valid
+  reports none).
+
+**Cross-version (0.20.2 WSL, `freecadcmd` probe):** identical — `Length` stays at the default,
+`ignored=['Lenght']`. The `hasattr`/join logic is version-independent.
+
+**Decision: PROMOTE.** Turns a silent wrong-dimension (S2) into a visible, fixable warning naming the
+offending key; zero cost when all keys are valid (no extra round-trip, no new surface); cross-version
+safe. Complements the output read-back (C-001/C-002/C-005) with input read-back.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so
