@@ -36,6 +36,18 @@ Check("boolean cut", tool.Boolean(FreeCADTool.BooleanOperation.Cut, "[\"box\",\"
 Check("export step", tool.Export("step", "/out/test.step"), r =>
     NoErr(r) && File.Exists(Path.Combine(ws, "out", "test.step")));
 
+// ── C-007: export surfaces the object count and any requested names not in the document.
+//    A bad objectNames used to silently write a header-only STEP with no geometry. ──
+Check("export reports the object count",
+    tool.Export("step", "/out/box.step", "[\"box\"]"),
+    r => NoErr(r) && r.Contains("(1 object)"));
+Check("export reports a missing object name",
+    tool.Export("step", "/out/mix.step", "[\"box\",\"ghost\"]"),
+    r => NoErr(r) && r.Contains("Missing objects") && r.Contains("ghost"));
+Check("export with all-missing names errors (nothing to export)",
+    tool.Export("step", "/out/none.step", "[\"ghost1\",\"ghost2\"]"),
+    r => r.StartsWith("Error:"));
+
 // PartDesign: body + sketch + pad
 Check("create body", tool.CreateBody("b"), NoErr);
 Check("sketch create", tool.Sketch(FreeCADTool.SketchAction.Create, "sk", "b", "XY_Plane"), NoErr);

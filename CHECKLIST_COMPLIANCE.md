@@ -9,7 +9,7 @@ an external FreeCAD instance over a local RPC bridge; it has no native or non-.N
 its own. It sets itself up: on first use it auto-starts a headless FreeCAD + the bundled bridge, and
 auto-installs the FCGear add-on on the first gear request, surfacing setup progress/failures as
 localized OS notifications via the shared `AIOrchestrator.SystemNotifier`. Verified end-to-end
-against a live headless FreeCAD 1.1.3 (62/62 harness checks pass as of 2026-09-22, plus 10/10
+against a live headless FreeCAD 1.1.3 (65/65 harness checks pass as of 2026-09-22, plus 10/10
 field-test scenarios;
 the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd` run).
 
@@ -56,6 +56,9 @@ the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd
 - OK — the property-blob methods (`create_primitive`, `edit_object`, `create_object`) report any
   property names the object does not have as **ignored** (a typo'd key used to silently leave the
   object at its default — a wrong-dimension failure); the `<returns>` docs state this. Cycle C-006.
+- OK — `export` reports the **count of objects** actually exported and any requested names **not in
+  the document** as missing (a bad `objectNames` used to silently write a header-only STEP with no
+  geometry); the `<returns>` doc states this. Cycle C-007.
 - N/A — no `[[name]]` dynamic placeholders.
 
 ## Surface & sandbox

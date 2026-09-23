@@ -561,7 +561,7 @@ _result_ = {{'name': obj.Name, 'label': obj.Label, 'valid': bool(sh.isValid()) i
     /// <param name="path">Workspace path to write (extension should match format).</param>
     /// <param name="objectNames">JSON array of object names to export; omit to export all visible objects.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The exported workspace path, or "Error:".</returns>
+    /// <returns>The exported workspace path with the count of objects exported; any requested names not found in the document are reported as missing, or "Error:".</returns>
     public string Export(string format, string path, string? objectNames = null, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.Export: {format} → {path}");
@@ -570,24 +570,34 @@ _result_ = {{'name': obj.Name, 'label': obj.Label, 'valid': bool(sh.isValid()) i
         if (!extMap.TryGetValue(format ?? "", out var ext))
             return "Error: unknown format. Use step, stl, 3mf, obj, or iges.";
         if (!SandboxPath.TryResolve(path, out var full)) return $"Error: path '{path}' escapes the workspace.";
-        var sel = string.IsNullOrWhiteSpace(objectNames)
-            ? "[o for o in doc.Objects if getattr(getattr(o,'ViewObject',None),'Visibility',True)]"
-            : $"[doc.getObject(n) for n in {PyJson(objectNames)}]";
+        var reqExpr = string.IsNullOrWhiteSpace(objectNames) ? "[]" : PyJson(objectNames);
         var code = $@"import json, os
 doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
 if doc is None: raise ValueError('no document')
-objs = {sel}
+req = {reqExpr}
+missing = []
+if not req:
+    objs = [o for o in doc.Objects if getattr(getattr(o,'ViewObject',None),'Visibility',True)]
+else:
+    objs = []
+    for n in req:
+        o = doc.getObject(n)
+        if o is None: missing.append(n)
+        else: objs.append(o)
 if not objs: raise ValueError('nothing to export')
 os.makedirs(os.path.dirname({Py(full)}), exist_ok=True)
 import Part
 Part.export(objs, {Py(full)})
-_result_ = {Py(full)}";
+_result_ = {{'count': len(objs), 'missing': ', '.join(missing)}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "export")!;
         var vid = GitSupport.Snapshot(full, "FreeCADTool export " + ext);
-        return vid != null
-            ? $"Exported {ext} to '{SandboxPath.ToAgent(full)}'. New version: {vid}."
-            : $"Exported {ext} to '{SandboxPath.ToAgent(full)}'.";
+        var cnt = Field(r, "count") ?? "?";
+        var miss = Field(r, "missing");
+        var msg = $"Exported {ext} ({cnt} object{(cnt == "1" ? "" : "s")}) to '{SandboxPath.ToAgent(full)}'.";
+        if (!string.IsNullOrEmpty(miss)) msg += $" Missing objects (not in document): {miss}.";
+        if (vid != null) msg += $" New version: {vid}.";
+        return msg;
     }
 
     /// <summary>Import a CAD file into the active document. Supports STEP, IGES, and mesh formats (STL/OBJ) via the Part workbench. Returns the imported object name.</summary>

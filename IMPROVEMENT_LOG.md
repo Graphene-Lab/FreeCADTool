@@ -265,6 +265,45 @@ safe. Complements the output read-back (C-001/C-002/C-005) with input read-back.
 
 ---
 
+## C-007 — Surface the export object count and missing names (PROMOTE)
+
+**Hypothesis.** `export` resolved `objectNames` with `[doc.getObject(n) for n in req]`. A name not in
+the document resolves to `None`, so `objs=[None]` passed the `if not objs` guard and `Part.export([None],
+path)` **did not raise** — it wrote a **header-only STEP with no geometry** (measured: 1640 bytes,
+`ShapeType=0`). The agent got "Exported step to '…'" and believed it exported the model. Surfacing the
+resolved object count and the names that did not resolve turns this silent empty-export into a visible,
+fixable result. Same input-read-back theme as C-006.
+
+**Change kind:** richer result on an existing method (no new method/param).
+
+**Evidence (live probe, Windows 1.1.3).** `Part.export([doc.getObject("ghost")], path)` → no raise,
+file written 1640 bytes / 20 entities / `ShapeType=0` (header only, no solid). The old guard
+`if not objs` only catches an empty list, not a list of `None`s.
+
+**Implementation.** `export` now resolves each requested name, collects the unresolved ones into
+`missing`, keeps only real objects, raises `nothing to export` only when **no** real object remains,
+and returns `{'count': len(objs), 'missing': ', '.join(missing)}`. The C# result reads
+`Exported {ext} ({count} object[s]) to '…'.` plus `Missing objects (not in document): {missing}.`
+when any name did not resolve. The default (visible-objects) selection is unchanged.
+
+**Measured result (Windows 1.1.3):**
+- `export step /out/box.step ["box"]` → `Exported step (1 object) to '/out/box.step'.`
+- `export step /out/mix.step ["box","ghost"]` → `Exported step (1 object) to '/out/mix.step'.
+  Missing objects (not in document): ghost.` — the agent now knows `ghost` was not exported.
+- `export step /out/none.step ["ghost1","ghost2"]` → `Error: … nothing to export` (was a silent
+  header-only file).
+- Harness: **65/65 PASS** (62 + 3 new C-007 checks: count reported, missing reported, all-missing errors).
+
+**Cross-version (0.20.2 WSL, `freecadcmd` probe):** the resolve/missing logic is identical —
+`count=1, missing=ghost` for `["box","ghost"]`. `getObject`/list-join are version-agnostic; the fix
+also means a `None` never reaches `Part.export` on either version.
+
+**Decision: PROMOTE.** Eliminates a silent empty-export (the agent can no longer mistake a header-only
+file for the model); reports exactly what went into the file; zero cost on the normal path; cross-version
+safe.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so
