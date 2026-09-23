@@ -175,6 +175,23 @@ Check("polar pattern shape valid", tool.InspectObject("polar"), r =>
     return sh.ValueKind != JsonValueKind.Null && sh.GetProperty("valid").GetBoolean();
 });
 
+// ── C-005: Pattern surfaces the kernel read-back (valid + volume) so the agent sees the
+//    truth without a follow-up inspect_object (same round-trip removal as C-001). The shared
+//    null-guard is already proven to catch an invalid shape on Feature/EdgeOp; a reliably
+//    invalid PATTERN input is not controllable (negative-length invalidity is property-set-order
+//    dependent in the kernel), so only the read-back surface is asserted here. ──
+tool.CreateBody("patb");
+tool.Sketch(FreeCADTool.SketchAction.Create, "patsk", "patb", "XY_Plane");
+tool.Sketch(FreeCADTool.SketchAction.Rectangle, "patsk", properties: "{\"x\":0,\"y\":0,\"width\":10,\"height\":10}");
+string patPad = System.Text.RegularExpressions.Regex.Match(
+    tool.Feature(FreeCADTool.FeatureAction.Pad, "patsk", "patb", "{\"length\":10}"), "'([^']+)'").Groups[1].Value;
+Check("Pattern linear reports valid+volume (no follow-up inspect)",
+    tool.Pattern(FreeCADTool.PatternAction.Linear, patPad, "patb", "{\"length\":30,\"occurrences\":2}"),
+    r => NoErr(r) && r.Contains("valid=True") && r.Contains("volume="));
+Check("Pattern polar reports valid+volume (no follow-up inspect)",
+    tool.Pattern(FreeCADTool.PatternAction.Polar, patPad, "patb", "{\"angle\":90,\"occurrences\":2}"),
+    r => NoErr(r) && r.Contains("valid=True") && r.Contains("volume="));
+
 // ── undo / redo (GUI-only: in headless they must report the GUI requirement, not silently no-op) ──
 Check("undo status reports gui flag", tool.UndoRedo(FreeCADTool.UndoRedoAction.Status), r => NoErr(r) && r.Contains("gui"));
 Check("undo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Undo), r => r.Contains("GUI"));

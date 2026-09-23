@@ -9,7 +9,7 @@ an external FreeCAD instance over a local RPC bridge; it has no native or non-.N
 its own. It sets itself up: on first use it auto-starts a headless FreeCAD + the bundled bridge, and
 auto-installs the FCGear add-on on the first gear request, surfacing setup progress/failures as
 localized OS notifications via the shared `AIOrchestrator.SystemNotifier`. Verified end-to-end
-against a live headless FreeCAD 1.1.3 (56/56 harness checks pass as of 2026-09-22, plus 10/10
+against a live headless FreeCAD 1.1.3 (58/58 harness checks pass as of 2026-09-22, plus 10/10
 field-test scenarios;
 the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd` run).
 
@@ -50,6 +50,9 @@ the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd
 - OK — `create_primitive` gained an **optional** `position` param (no new method, §7): `[x,y,z]` mm
   places the primitive in the create call (no follow-up `transform_object`); documented in `<param>`,
   opt-in (omitted leaves it at the origin, existing callers unaffected). Cycle C-004.
+- OK — `Pattern` surfaces the kernel read-back (`valid` + `volume` mm³) in its result like
+  `create_primitive`/`Feature`/`EdgeOp`, removing the follow-up `inspect_object` needed to confirm a
+  pattern; the `<returns>` doc states this. Cycle C-005.
 - N/A — no `[[name]]` dynamic placeholders.
 
 ## Surface & sandbox

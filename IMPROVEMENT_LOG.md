@@ -179,6 +179,50 @@ cross-version safe; no new surface.
 
 ---
 
+## C-005 — Surface the kernel read-back on `Pattern` (PROMOTE)
+
+**Hypothesis.** `Pattern` (linear/polar/mirror) was the last feature-producing method that did **not**
+surface `valid`+`volume` — it returned only the feature name. Surfacing the read-back removes the
+follow-up `inspect_object` needed to confirm a pattern worked (same round-trip removal as C-001), and
+the shared null-guard would report an invalid pattern shape the way it does for `Feature`/`EdgeOp`.
+
+**Change kind:** richer result on an existing method (no new method — respects the "few methods" rule).
+
+**Evidence (live probes, Windows 1.1.3).**
+- A linear pattern with a **negative length** can recompute to `isNull=True / State=['Invalid']`
+  **without raising** — so the C# `try/except` does not catch it, and the old method reported a plain
+  "Created linear pattern". This is the same silent-failure family as C-001.
+- **But** the negative-length invalidity is **property-set-order dependent**: the probe that set
+  `Length` *before* `Occurrences` produced INVALID; the method (which sets `Occurrences` *before*
+  `Length`) produced a **valid** pattern for the same `length=-5`. Confirmed across three harness
+  configurations (same body, fresh body, first-feature-off-pad) — the method's fixed order yields
+  `valid=True`. So a reliably-invalid *pattern input* is **not controllable** through the method.
+
+**Implementation.** `Pattern` now uses the same guarded read-back as `Feature`/`EdgeOp`
+(`_ok = sh is not None and not sh.isNull()`; `valid`/`volume` guarded by it) and returns
+`Created {a} pattern '{name}' (valid=True, volume=...)` or the INVALID line if the shape is empty.
+
+**Measured result (Windows 1.1.3):**
+- `pattern linear pad` → `Created linear pattern 'linear' (valid=True, volume=3000.0)` — the create
+  string alone now answers "is it valid and how big"; the verification `inspect_object` is no longer
+  required (**−1 RPC round-trip per pattern**).
+- `pattern polar pad` → `Created polar pattern 'polar' (valid=True, volume=8133.97)`.
+- Harness: **58/58 PASS** (56 + 2 new C-005 read-back checks: linear and polar report valid+volume).
+  The INVALID case is **not asserted** — see the order-dependence finding above; asserting it would be
+  a fragile test of a non-deterministic kernel trigger.
+
+**Cross-version (0.20.2 WSL, `freecadcmd` probe):** a linear pattern read back as `isValid=True`,
+`isNull=False`, `Volume≈1000`, `State=['Up-to-date']` (0.20.2 also logs "Result has multiple solids,
+keeping the first" for the disjoint copies — a kernel notice, the pattern is still valid). The guarded
+read-back is API-stable across 0.20.2 ↔ 1.1.3.
+
+**Decision: PROMOTE.** Real benefit (round-trip removal + truth visibility), the shared null-guard is
+already proven to catch an invalid shape on `Feature`/`EdgeOp`, negligible cost, no new surface,
+cross-version safe. The invalid-pattern *detection* is a property of the shared guard, not a
+method-specific tested trigger (the trigger itself is order-dependent in the kernel).
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so

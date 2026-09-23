@@ -250,7 +250,7 @@ _result_ = {{'name': f.Name, 'valid': _valid, 'volume': float(sh.Volume) if _ok 
     /// <param name="body">Target Body name; omit to use the feature's parent body.</param>
     /// <param name="properties">Pattern JSON. Linear: {"length"(mm),"occurrences"(int),"direction":"BaseX_Direction|BaseY_Direction|BaseZ_Direction"}. Polar: {"angle"(deg),"occurrences"(int),"axis":"V_Axis|H_Axis|N_Axis" of the source profile sketch, default N_Axis}. Mirror: {"plane":"XY_Plane|XZ_Plane|YZ_Plane"}.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>The pattern feature name, or "Error:".</returns>
+    /// <returns>The pattern feature name with its validity and volume (mm³); if the pattern failed (e.g. invalid length/angle) the result says so, or "Error:".</returns>
     public string Pattern(PatternAction action, string? feature = null, string? body = null, string? properties = null, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.Pattern: {action} of {feature}");
@@ -289,10 +289,15 @@ try:
 except Exception:
     doc.abortTransaction()
     raise
-_result_ = {{'name': f.Name}}";
+sh = getattr(f, 'Shape', None)
+_ok = sh is not None and not sh.isNull()
+_valid = bool(f.isValid()) if hasattr(f, 'isValid') else (_ok and bool(sh.isValid()))
+_result_ = {{'name': f.Name, 'valid': _valid, 'volume': float(sh.Volume) if _ok else 0.0}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "pattern " + a)!;
-        return $"Created {a} pattern '{Field(r, "name")}'.";
+        if (Field(r, "valid") == "False")
+            return $"Created {a} pattern '{Field(r, "name")}' but the result is INVALID (empty) — the pattern parameters (length/angle/occurrences) are likely invalid. Adjust them and recompute.";
+        return $"Created {a} pattern '{Field(r, "name")}' (valid=True, volume={Field(r, "volume")}).";
     }
 
     /// <summary>Round (Fillet) or bevel (Chamfer) edges of a solid feature. baseObject is the solid feature; edges is a JSON array of edge references like ["Edge1","Edge3"]; size is the radius/leg in mm.</summary>
