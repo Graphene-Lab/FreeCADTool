@@ -9,8 +9,8 @@ an external FreeCAD instance over a local RPC bridge; it has no native or non-.N
 its own. It sets itself up: on first use it auto-starts a headless FreeCAD + the bundled bridge, and
 auto-installs the FCGear add-on on the first gear request, surfacing setup progress/failures as
 localized OS notifications via the shared `AIOrchestrator.SystemNotifier`. Verified end-to-end
-against a live headless FreeCAD 1.1.3 (71/71 harness checks pass as of 2026-09-23, plus 10/10
-field-test scenarios;
+against a live headless FreeCAD 1.1.3 (72/72 harness checks pass as of 2026-09-23, plus 10/10
+field-test scenarios, plus a 92/92 production-simulation utility pass;
 the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd` run).
 
 ## Release & layout (plugin tools)

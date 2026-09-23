@@ -348,6 +348,81 @@ anytime, cross-version verified.
 
 ---
 
+## C-009 — `analyze` CenterOfMass must work on a fused Compound (PROMOTE — bug fix)
+
+**Hypothesis.** The C-008 `CenterOfMass` snippet used `Shape.CenterOfMass`, which exists only on a
+`Solid`. A Boolean **fuse** result is a `Part.Compound` (even when it contains a single solid), so
+`CenterOfMass` throws `'Part.Compound' object has no attribute 'CenterOfMass'` on the most common
+real-world centroid target — an L-bracket, a fused shaft, any multi-feature part. The fix is
+`Shape.CenterOfGravity`, the uniform-density mass centroid, which is exposed on both `Solid` and
+`Compound` and returns the same value on a solid.
+
+**Change kind:** bug fix to an existing method's kernel call (no surface change).
+
+**How it was found.** Not by the C-008 harness — that checked `CenterOfMass` on `an_a`, a single box
+(a `Solid`), so the Compound path was never exercised. It surfaced in the 100-case production
+simulation below (every L-bracket centroid case errored identically).
+
+**Evidence (live probes, both versions):**
+- 1.1.3: `a.fuse(b)` → `type=Compound, solids=1`; `CenterOfMass` → `AttributeError`;
+  `CenterOfGravity` → `Vector(7.5, 12.5, 5.0)`; a lone `Solid` box → `CenterOfGravity (5,5,5)`
+  == `CenterOfMass (5,5,5)`.
+- 0.20.2 WSL: identical — `CenterOfGravity` works on the fuse result and on a solid; same values.
+  `CenterOfGravity` is version-agnostic across the whole target range.
+
+**Implementation.** `CenterOfMass` snippet: `com = sa.CenterOfMass` → `com = sa.CenterOfGravity`.
+One token; the returned `com` vector and downstream formatting are unchanged.
+
+**Measured result:** harness **72/72 PASS** (71 + 1 new C-009 check that fuses two boxes into a
+Compound and asserts the centroid `(7.5, 12.5)`). The 8 L-bracket centroid cases in the production
+sim went from all-error to all-correct.
+
+**Decision: PROMOTE.** A latent crash on the single most common centroid input, fixed with a one-token
+swap verified on both target versions. The C-008 harness gap (Solid-only centroid) is now closed by a
+Compound check so it cannot regress.
+
+---
+
+## Production simulation — utility verdict for `analyze` (2026-09-23)
+
+**Question (the user's).** Is `analyze` useful enough to keep, or should it be removed? Tested not by
+analyze-specific probes but by simulating a real operator designing parts and assemblies:
+`FreeCADTool.ProductionSim`, **92 cases** across four categories, each judged against an independent
+expected value.
+
+**Result: 92/92 correct.** Category breakdown:
+
+| Category | Cases | Measurement needed? | `analyze` role |
+|---|---|---|---|
+| SINGLE (single-part modeling: brackets, pipes, shafts, flanges, enclosures, primitives) | 37 | **No** | not used |
+| FIT (pin-in-bore, bolt-through-hole, lid-in-frame, shaft-in-bearing) | 25 | **Yes** | `Interfere` = the fit checkpoint |
+| POSITION (L-bracket centroid, alignment gap) | 15 | **Yes** | `CenterOfMass` / `Distance` |
+| VERIFY (explicit collision / clearance query) | 15 | **Yes** | `analyze` *is* the task |
+
+- **measurement needed: 55/92 (60%)** — every assembly/fit/verification case needs a spatial truth the
+  operator cannot eyeball (does this pin seat? is there 0.5 mm clearance? where is the balance point?).
+- **`analyze` called: 55/92 (60%)** and **actionable: 55/92 (60%)** — it fires exactly where needed and
+  its answer changes the next design decision (resize the bore, shift the part, accept the fit).
+- **0/37 single-part cases** needed it — modeling a lone part is verified by volume/validity (C-001), not
+  by inter-part measurement.
+
+**Verdict: KEEP, scoped to assembly / fit / verification.** `analyze` is dead weight for single-part
+modeling but load-bearing for the fit/position/verify work that dominates real assembly design. It is
+not a general-purpose measurement grab-bag and should not be advertised for single-part tasks; its value
+is precisely the 60% of cases where two or more solids must be related. This matches the C-008 promote
+rationale and is now backed by a realistic-use distribution rather than a single-feature probe.
+
+**Harness bug found while building the sim (not a tool bug).** The sim interpolated dimensions into JSON
+with C# string interpolation, which uses the **thread culture**. On the Italian-locale host, `3.3`
+rendered as `"3,3"`, producing malformed JSON so `setattr(o,"Radius",…)` silently failed and the
+cylinder kept its default radius 2 — corrupting every decimal-valued case (pin ⌀10.2 read as r=2, bolt
+⌀6 in a ⌀6.6 hole read as a r=2 hole, etc.). Fixed by forcing `CurrentCulture = InvariantCulture` in
+the sim. The tool itself was correct throughout (confirmed by direct `freecadcmd` probes on the exact
+nominal geometry). Recorded because any future harness that builds JSON by interpolation must do the
+same.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so

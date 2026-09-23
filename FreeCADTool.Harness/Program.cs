@@ -89,6 +89,28 @@ Check("analyze on a missing object errors",
     tool.Analyze(FreeCADTool.AnalysisKind.CenterOfMass, "ghost"),
     r => r.StartsWith("Error:"));
 
+// ── C-009: CenterOfMass must work on a fused Compound, not just a Solid. The shipped
+//    snippet used Shape.CenterOfMass, which throws 'Part.Compound' object has no attribute
+//    'CenterOfMass' on any Boolean-fuse result (the common case for an L-bracket). Fixed
+//    to Shape.CenterOfGravity, verified on 1.1.3 and 0.20.2. ──
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":20,\"Width\":10,\"Height\":10}", "cf_a");
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":20,\"Height\":10}", "cf_b");
+tool.Transform("cf_b", position: "[0,10,0]");
+tool.Boolean(FreeCADTool.BooleanOperation.Fuse, "[\"cf_a\",\"cf_b\"]", "cf_L");
+Check("analyze center of mass works on a fused Compound (C-009 fix)",
+    tool.Analyze(FreeCADTool.AnalysisKind.CenterOfMass, "cf_L"),
+    r =>
+    {
+        if (!NoErr(r) || !r.Contains("Center of mass")) return false;
+        var i = r.IndexOf(": ["); if (i < 0) return false;
+        var j = r.IndexOf("]", i);
+        var nums = r.Substring(i + 3, j - (i + 3)).Split(',');
+        var x = double.Parse(nums[0].Trim(), System.Globalization.CultureInfo.InvariantCulture);
+        var y = double.Parse(nums[1].Trim(), System.Globalization.CultureInfo.InvariantCulture);
+        // L = 20x10x10 (com 10,5) + 10x20x10 (com 5,20), equal volumes -> com (7.5, 12.5)
+        return Math.Abs(x - 7.5) < 0.01 && Math.Abs(y - 12.5) < 0.01;
+    });
+
 // PartDesign: body + sketch + pad
 Check("create body", tool.CreateBody("b"), NoErr);
 Check("sketch create", tool.Sketch(FreeCADTool.SketchAction.Create, "sk", "b", "XY_Plane"), NoErr);

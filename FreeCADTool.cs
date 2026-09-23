@@ -528,7 +528,7 @@ a = doc.getObject({Py(objectName)})
 if a is None: raise ValueError('object not found: ' + {Py(objectName)})
 sa = getattr(a, 'Shape', None)
 if sa is None or sa.isNull(): raise ValueError('object has no shape: ' + {Py(objectName)})
-com = sa.CenterOfMass
+com = sa.CenterOfGravity
 bb = sa.BoundBox
 _result_ = {{'com': [round(com.x, 4), round(com.y, 4), round(com.z, 4)], 'volume': float(sa.Volume), 'bbox': [round(bb.XLength, 4), round(bb.YLength, 4), round(bb.ZLength, 4)]}}",
 
