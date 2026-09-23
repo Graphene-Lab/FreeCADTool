@@ -270,17 +270,46 @@ _result_ = res";
         return JsonSerializer.Serialize(r.Result.Value);
     }
 
-    /// <summary>Delete an object from the document (undoable).</summary>
+    /// <summary>Delete an object from the document (undoable). Reports any other objects that depended on it and whether the delete left them broken — deleting a sketch/feature that a downstream feature uses silently invalidates that feature, so the result surfaces the cascade instead of hiding it.</summary>
     /// <param name="name">Object name from list_objects.</param>
     /// <param name="docName">Document name; omit for the active document.</param>
-    /// <returns>Confirmation or "Error:".</returns>
+    /// <returns>Confirmation, with a "broke N dependent(s): …" warning when the delete invalidated downstream objects, or "Error:".</returns>
     public string DeleteObject(string name, string? docName = null)
     {
         Log.LogStep($"FreeCADTool.DeleteObject: {name}");
-        var code = $"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument\nif doc is None: raise ValueError('no document')\nif doc.getObject({Py(name)}) is None: raise ValueError('object not found')\ndoc.openTransaction('delete')\ntry:\n    doc.removeObject({Py(name)})\n    doc.commitTransaction()\nexcept Exception:\n    doc.abortTransaction()\n    raise\n_result_ = True";
+        var code = $@"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
+if doc is None: raise ValueError('no document')
+o = doc.getObject({Py(name)})
+if o is None: raise ValueError('object not found')
+# Real feature dependents = InList minus the container objects (Body/Part/Group), which
+# always appear in InList but are not features that 'break'.
+CONTAINERS = ('PartDesign::Body', 'App::Part', 'App::DocumentObjectGroup')
+deps = [x.Name for x in o.InList if x.TypeId not in CONTAINERS]
+doc.openTransaction('delete')
+try:
+    doc.removeObject({Py(name)})
+    doc.commitTransaction()
+except Exception:
+    doc.abortTransaction()
+    raise
+doc.recompute()
+broken = []
+for dn in deps:
+    do = doc.getObject(dn)
+    if do is None:
+        continue
+    try:
+        if not do.isValid():
+            broken.append(dn)
+    except Exception:
+        broken.append(dn)
+_result_ = {{'dependents': deps, 'broken_str': ', '.join(broken)}}";
         var r = Run(code);
         if (!r.Success) return Err(r, "delete object")!;
-        return $"Deleted '{name}'.";
+        var broken = Field(r, "broken_str");
+        if (string.IsNullOrEmpty(broken))
+            return $"Deleted '{name}'.";
+        return $"Deleted '{name}'. This broke {broken} — now invalid; fix their references or undo.";
     }
 
     /// <summary>Create a primitive solid. properties is a JSON object of the FreeCAD primitive properties (see per-kind keys in the parameter doc). The primitive is added to the active document and recomputed.</summary>

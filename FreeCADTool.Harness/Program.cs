@@ -318,6 +318,21 @@ Check("Pattern polar reports valid+volume (no follow-up inspect)",
     tool.Pattern(FreeCADTool.PatternAction.Polar, patPad, "patb", "{\"angle\":90,\"occurrences\":2}"),
     r => NoErr(r) && r.Contains("valid=True") && r.Contains("volume="));
 
+// ── C-011: delete surfaces the dependency cascade. Deleting a sketch that a pad uses
+//    silently invalidates the pad (pad -> ['Touched','Invalid']); the result must report it
+//    instead of hiding it. Container objects (Body) are filtered out of the dependent list.
+//    Placed late so its auto-named pad cannot collide with the PartDesign section's "pad". ──
+tool.CreateBody("db");
+tool.Sketch(FreeCADTool.SketchAction.Create, "dsk", "db", "XY_Plane");
+tool.Sketch(FreeCADTool.SketchAction.Rectangle, "dsk", properties: "{\"x\":0,\"y\":0,\"width\":20,\"height\":10}");
+tool.Feature(FreeCADTool.FeatureAction.Pad, "dsk", "db", "{\"length\":10}");
+Check("delete of a used sketch reports the broken dependent",
+    tool.DeleteObject("dsk"),
+    r => NoErr(r) && r.Contains("broke") && r.Contains("pad"));
+Check("delete of a leaf object reports no breakage",
+    tool.DeleteObject("sec_box"),
+    r => NoErr(r) && r.Trim() == "Deleted 'sec_box'.");
+
 // ── undo / redo (GUI-only: in headless they must report the GUI requirement, not silently no-op) ──
 Check("undo status reports gui flag", tool.UndoRedo(FreeCADTool.UndoRedoAction.Status), r => NoErr(r) && r.Contains("gui"));
 Check("undo requires GUI (headless errors)", tool.UndoRedo(FreeCADTool.UndoRedoAction.Undo), r => r.Contains("GUI"));

@@ -461,6 +461,45 @@ CenterOfMass is a whole-solid property, Section is a *local* property at a chose
 
 ---
 
+## C-011 — `DeleteObject` surfaces the dependency cascade (PROMOTE — stolen idea)
+
+**Origin.** The dependency-graph cascade preview from the similar-projects review: before/while
+deleting an object, report what depends on it. It is the read-back-before-destructive analogue of
+C-001 (which surfaced a silent *create* failure) — here the silent failure is a *delete* that breaks a
+downstream feature with no signal.
+
+**Hypothesis.** Deleting an object that another feature uses silently invalidates that feature (the
+dependent goes `['Touched','Invalid']` with no warning). Surfacing the real feature-dependents and which
+ones the delete broke turns a silent corruption into an actionable report.
+
+**Change kind:** richer result on the existing `DeleteObject` method (no new method).
+
+**Evidence (live probes, both versions):**
+- 1.1.3: `sk.InList = ['Body','Pad']`, `pad.InList = ['Body','Body']`, `pad.OutList = ['Sketch']`.
+  Deleting the sketch → `pad.State = ['Touched','Invalid']`, `pad.isValid()=False`, kernel logs
+  "Pad: No object linked" — silent breakage.
+- 0.20.2 WSL: identical (same InList/OutList, same post-delete Invalid).
+- **Container filter needed:** the container (`PartDesign::Body` / `App::Part` /
+  `App::DocumentObjectGroup`) always appears in `InList` but is not a feature that "breaks". Filtering
+  those TypeIds leaves the real dependents: sketch → `['Pad']`, pad → `[]`.
+
+**Implementation.** `DeleteObject` computes `deps = [x.Name for x in o.InList if x.TypeId not in
+CONTAINERS]` before removal, deletes, recomputes, then checks each dependent's `isValid()`; returns
+`"Deleted 'X'."` when nothing broke, or `"Deleted 'X'. This broke <names> — now invalid; fix their
+references or undo."` when the delete invalidated dependents. (The delete stays undoable — the warning
+tells the agent to undo or repair.)
+
+**Measured result:** harness **78/78 PASS** (76 + 2: delete of a used sketch reports the broken pad;
+delete of a leaf reports clean). Note: the C-011 harness block is placed **late** — its auto-named pad
+must not collide with the PartDesign section's `pad` (an early placement hijacked that name and broke the
+`pad volume=3000` and polar-pattern checks).
+
+**Decision: PROMOTE.** A confirmed silent-failure class (delete breaks dependents invisibly), fixed with
+a read-back that names what broke, cross-version verified, no new method. Same principle as C-001/C-006/
+C-007: surface the kernel truth at the point the agent acts.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so
