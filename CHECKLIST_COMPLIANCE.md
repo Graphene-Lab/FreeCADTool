@@ -9,7 +9,7 @@ an external FreeCAD instance over a local RPC bridge; it has no native or non-.N
 its own. It sets itself up: on first use it auto-starts a headless FreeCAD + the bundled bridge, and
 auto-installs the FCGear add-on on the first gear request, surfacing setup progress/failures as
 localized OS notifications via the shared `AIOrchestrator.SystemNotifier`. Verified end-to-end
-against a live headless FreeCAD 1.1.3 (65/65 harness checks pass as of 2026-09-22, plus 10/10
+against a live headless FreeCAD 1.1.3 (71/71 harness checks pass as of 2026-09-23, plus 10/10
 field-test scenarios;
 the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd` run).
 
@@ -59,6 +59,11 @@ the FCGear install→Mod-dir→load→gear path verified with a live `freecadcmd
 - OK — `export` reports the **count of objects** actually exported and any requested names **not in
   the document** as missing (a bad `objectNames` used to silently write a header-only STEP with no
   geometry); the `<returns>` doc states this. Cycle C-007.
+- OK — `analyze` (new, read-only, one method + `AnalysisKind` enum, §7) surfaces kernel measurements
+  the tool previously had no way to obtain: `Interfere` (overlap volume via `Shape.common`),
+  `Distance` (min gap + closest points via `Shape.distToShape`), `CenterOfMass` (centroid + volume +
+  bounding-box size). It guards a missing object/shape with a named `Error:` and requires the second
+  object for the two-object kinds; the `<returns>` doc states the outcomes. Cycle C-008.
 - N/A — no `[[name]]` dynamic placeholders.
 
 ## Surface & sandbox

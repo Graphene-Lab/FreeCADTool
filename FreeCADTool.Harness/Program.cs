@@ -48,6 +48,47 @@ Check("export with all-missing names errors (nothing to export)",
     tool.Export("step", "/out/none.step", "[\"ghost1\",\"ghost2\"]"),
     r => r.StartsWith("Error:"));
 
+// ── C-008: read-only spatial analysis. The tool could build and export but not MEASURE
+//    relationships between solids (collision, clearance) or physical properties (centroid,
+//    size). Each kind is a deterministic kernel op verified on 1.1.3 and 0.20.2. ──
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "an_a");
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "an_b");
+tool.Transform("an_b", position: "[5,0,0]");   // overlaps an_a by 5 in X -> 5*10*10 = 500 mm3
+tool.CreatePrimitive(FreeCADTool.PrimitiveKind.Box, "{\"Length\":10,\"Width\":10,\"Height\":10}", "an_far");
+tool.Transform("an_far", position: "[50,0,0]"); // 40 mm clear of an_a
+Check("analyze interfere detects an overlap (~500 mm3)",
+    tool.Analyze(FreeCADTool.AnalysisKind.Interfere, "an_a", "an_b"),
+    r =>
+    {
+        if (!NoErr(r) || !r.Contains("INTERFERE")) return false;
+        var i = r.IndexOf("overlap volume "); if (i < 0) return false;
+        var j = r.IndexOf(" mm", i);
+        var v = double.Parse(r.Substring(i + 15, j - (i + 15)), System.Globalization.CultureInfo.InvariantCulture);
+        return Math.Abs(v - 500) < 1;
+    });
+Check("analyze interfere: separated objects do not interfere",
+    tool.Analyze(FreeCADTool.AnalysisKind.Interfere, "an_a", "an_far"),
+    r => NoErr(r) && r.Contains("do not interfere"));
+Check("analyze distance between separated objects (40 mm)",
+    tool.Analyze(FreeCADTool.AnalysisKind.Distance, "an_a", "an_far"),
+    r => NoErr(r) && r.Contains("40"));
+Check("analyze center of mass + volume + size",
+    tool.Analyze(FreeCADTool.AnalysisKind.CenterOfMass, "an_a"),
+    r =>
+    {
+        if (!NoErr(r) || !r.Contains("Center of mass") || !r.Contains("5.0")) return false;
+        var i = r.IndexOf("volume "); if (i < 0) return false;
+        var j = r.IndexOf(" mm", i);
+        var v = double.Parse(r.Substring(i + 7, j - (i + 7)), System.Globalization.CultureInfo.InvariantCulture);
+        return Math.Abs(v - 1000) < 1;
+    });
+Check("analyze interfere without a second object errors",
+    tool.Analyze(FreeCADTool.AnalysisKind.Interfere, "an_a"),
+    r => r.StartsWith("Error:"));
+Check("analyze on a missing object errors",
+    tool.Analyze(FreeCADTool.AnalysisKind.CenterOfMass, "ghost"),
+    r => r.StartsWith("Error:"));
+
 // PartDesign: body + sketch + pad
 Check("create body", tool.CreateBody("b"), NoErr);
 Check("sketch create", tool.Sketch(FreeCADTool.SketchAction.Create, "sk", "b", "XY_Plane"), NoErr);

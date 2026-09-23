@@ -304,6 +304,50 @@ safe.
 
 ---
 
+## C-008 — Read-only spatial analysis: `analyze` (PROMOTE)
+
+**Source.** 2026 text-to-CAD literature (Appendix A): ASSEMCAD validates assembly interfaces with
+concrete B-Rep evidence; CADSmith measures the kernel (bbox/volume/validity) rather than trusting the
+model. FreeCADTool could **build** and **export** but had no way to **measure** a model or the
+relationship between two solids — every collision/clearance/centroid question needed hand-written
+Python.
+
+**Hypothesis.** A single read-only `analyze` method with three kernel-backed kinds — `Interfere`
+(overlap volume via `Shape.common`), `Distance` (min gap + closest points via `Shape.distToShape`),
+`CenterOfMass` (centroid + volume + bounding-box size) — gives the agent assembly-validation and
+physical-property capabilities it lacks, each a deterministic kernel op that works on both target
+versions, at one method (not three) per the "few methods" rule.
+
+**Change kind:** one new method + one new enum (`AnalysisKind`), read-only, no model change.
+
+**Implementation.** `analyze(kind, objectName, otherName?, docName?)`. Each kind resolves the object(s),
+guards against a missing object or a null shape (raises a named error), runs the kernel op, and returns a
+plain-language measurement: `INTERFERE — overlap volume X mm³` / `do not interfere`;
+`Minimum distance … D mm (closest: A at [x,y,z], B at [x,y,z])`; `Center of mass … [x,y,z] mm;
+volume V mm³; overall size [L,W,H] mm`. `otherName` is required for the two-object kinds (a missing one
+is an `Error:`, not a silent wrong answer). Volumes are raw kernel floats (same convention as
+`create_primitive`/`Feature`/`boolean`); the harness asserts with tolerance.
+
+**Measured result (Windows 1.1.3, live harness):**
+- `analyze Interfere an_a an_b` (5 mm X overlap) → `INTERFERE — overlap volume 499.9999999999999 mm³`
+  (5×10×10 = 500).
+- `analyze Interfere an_a an_far` (40 mm apart) → `do not interfere (no overlap)`.
+- `analyze Distance an_a an_far` → `40.0 mm (closest: an_a at [10.0, 0.0, 10.0], an_far at [50.0, 0.0, 10.0])`.
+- `analyze CenterOfMass an_a` (10³ box) → `[5.0, 5.0, 5.0] mm; volume 999.9999999999998 mm³; overall size [10.0, 10.0, 10.0] mm`.
+- `analyze Interfere an_a` (no second object) → `Error: 'Interfere' needs a second object name.`
+- `analyze CenterOfMass ghost` → `Error: … object not found`.
+- Harness: **71/71 PASS** (65 + 6 new C-008 checks).
+
+**Cross-version (0.20.2 WSL `freecadcmd` probe):** identical — `common` overlap 499.9999999999999 /
+collide True, no-overlap 0.0 / False; `distToShape` 40.0 with the same closest points; `CenterOfMass`
+(5,5,5); `BoundBox` 10×10×10. All three primitives are version-agnostic.
+
+**Decision: PROMOTE.** Adds a capability class the tool entirely lacked (collision, clearance, balance/
+footprint), each a single deterministic kernel call, one method + one enum, read-only and safe to call
+anytime, cross-version verified.
+
+---
+
 ## Rejected / do-NOT-re-test
 
 These were considered and rejected **before** implementation (or are anti-patterns). Recorded so
@@ -329,6 +373,24 @@ Idea: report the new volume after a transform. **Why rejected:** `Transform` is 
 pure move/rotate, where volume is unchanged and irrelevant; the scale case is the minority. Adding
 volume to every transform result is noise for the common case. (If a scale-confirmation is ever
 needed, `inspect_object` already gives it.)
+
+### R-004 — Overhang / DFM printability check (face normals vs build direction) — REJECTED (not reliably measurable from a thin client)
+Idea (AgentsCAD, 2026): flag faces whose outward normal points against the build direction beyond a
+45° threshold as FDM overhangs. **Why rejected — two independent blockers, both confirmed by
+`freecadcmd` probes on 1.1.3:**
+1. **The outward normal of a non-planar face cannot be determined reliably.** `face.normalAt(u,v)`
+   returns the surface's natural normal; the `Orientation` flag does not fix the sign consistently
+   (a box's x=0 face and its top face are both `Reversed` yet their raw normals have opposite
+   outward-ness). The robust fallback — offset the face CoM by ±ε·n and test `Shape.isInside` — works
+   for planar faces but returns **inside on both sides** for a conical slant (the ε step lands within
+   tolerance on both), so the sign is arbitrary there.
+2. **Even with a correct outward normal, the normal direction does not track FDM overhang.** A part's
+   top face is up-facing yet fully supported; a widening cone's slant is up-facing yet genuinely
+   overhangs; a traffic cone's slant is down-facing yet self-supporting. Overhang is a property of
+   per-layer *support*, not of the surface normal. A correct check needs layer-wise support analysis,
+   which is out of scope for a pure-RPC client with no mesh/slice pipeline.
+A normal-only heuristic would mis-flag the build-plate face and invert on cones — worse than not having
+it. If DFM is ever needed, it belongs in a dedicated slicer-backed tool, not here.
 
 ---
 

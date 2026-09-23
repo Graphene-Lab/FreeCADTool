@@ -480,6 +480,74 @@ _result_ = {{'name': o.Name, 'valid': res.isValid(), 'volume': res.Volume}}";
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // Spatial analysis (read-only kernel measurements)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>Measure objects with the CAD kernel without changing the model. Interfere: whether two solids overlap and by how much (assembly collision check). Distance: the minimum gap between two objects and their closest points (clearance check). CenterOfMass: an object's centroid, volume and overall bounding-box size (balance and footprint). Read-only — safe to call anytime.</summary>
+    /// <param name="kind">Interfere | Distance | CenterOfMass.</param>
+    /// <param name="objectName">First object (the subject for CenterOfMass), from list_objects.</param>
+    /// <param name="otherName">Second object; required for Interfere and Distance.</param>
+    /// <param name="docName">Document name; omit for the active document.</param>
+    /// <returns>The measurement (overlap volume / gap in mm / centroid+size), or "Error:".</returns>
+    public string Analyze(AnalysisKind kind, string objectName, string? otherName = null, string? docName = null)
+    {
+        Log.LogStep($"FreeCADTool.Analyze: {kind} {objectName}{(string.IsNullOrWhiteSpace(otherName) ? "" : " vs " + otherName)}");
+        if ((kind == AnalysisKind.Interfere || kind == AnalysisKind.Distance) && string.IsNullOrWhiteSpace(otherName))
+            return $"Error: '{kind}' needs a second object name.";
+
+        var code = kind switch
+        {
+            AnalysisKind.Interfere => $@"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
+if doc is None: raise ValueError('no document')
+a = doc.getObject({Py(objectName)})
+b = doc.getObject({Py(otherName)})
+if a is None: raise ValueError('object not found: ' + {Py(objectName)})
+if b is None: raise ValueError('object not found: ' + {Py(otherName)})
+sa = getattr(a, 'Shape', None); sb = getattr(b, 'Shape', None)
+if sa is None or sa.isNull(): raise ValueError('object has no shape: ' + {Py(objectName)})
+if sb is None or sb.isNull(): raise ValueError('object has no shape: ' + {Py(otherName)})
+ov = sa.common(sb)
+_result_ = {{'volume': float(ov.Volume), 'collide': bool(ov.Volume > 1e-6)}}",
+
+            AnalysisKind.Distance => $@"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
+if doc is None: raise ValueError('no document')
+a = doc.getObject({Py(objectName)})
+b = doc.getObject({Py(otherName)})
+if a is None: raise ValueError('object not found: ' + {Py(objectName)})
+if b is None: raise ValueError('object not found: ' + {Py(otherName)})
+sa = getattr(a, 'Shape', None); sb = getattr(b, 'Shape', None)
+if sa is None or sa.isNull(): raise ValueError('object has no shape: ' + {Py(objectName)})
+if sb is None or sb.isNull(): raise ValueError('object has no shape: ' + {Py(otherName)})
+d, pts, info = sa.distToShape(sb)
+pa = pts[0][0]; pb = pts[0][1]
+_result_ = {{'distance': float(d), 'pointA': [round(pa.x, 4), round(pa.y, 4), round(pa.z, 4)], 'pointB': [round(pb.x, 4), round(pb.y, 4), round(pb.z, 4)]}}",
+
+            AnalysisKind.CenterOfMass => $@"doc = FreeCAD.getDocument({Py(docName)}) if {Py(docName)} else FreeCAD.ActiveDocument
+if doc is None: raise ValueError('no document')
+a = doc.getObject({Py(objectName)})
+if a is None: raise ValueError('object not found: ' + {Py(objectName)})
+sa = getattr(a, 'Shape', None)
+if sa is None or sa.isNull(): raise ValueError('object has no shape: ' + {Py(objectName)})
+com = sa.CenterOfMass
+bb = sa.BoundBox
+_result_ = {{'com': [round(com.x, 4), round(com.y, 4), round(com.z, 4)], 'volume': float(sa.Volume), 'bbox': [round(bb.XLength, 4), round(bb.YLength, 4), round(bb.ZLength, 4)]}}",
+
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        var r = Run(code);
+        if (!r.Success) return Err(r, kind.ToString().ToLowerInvariant())!;
+        return kind switch
+        {
+            AnalysisKind.Interfere => Field(r, "collide") == "True"
+                ? $"Objects '{objectName}' and '{otherName}' INTERFERE — overlap volume {Field(r, "volume")} mm³."
+                : $"Objects '{objectName}' and '{otherName}' do not interfere (no overlap).",
+            AnalysisKind.Distance => $"Minimum distance between '{objectName}' and '{otherName}': {Field(r, "distance")} mm (closest: {objectName} at {Field(r, "pointA")}, {otherName} at {Field(r, "pointB")}).",
+            AnalysisKind.CenterOfMass => $"Center of mass of '{objectName}': {Field(r, "com")} mm; volume {Field(r, "volume")} mm³; overall size {Field(r, "bbox")} mm.",
+            _ => "Error: unsupported analysis."
+        };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // Standard parts (workbench call-through)
     // ─────────────────────────────────────────────────────────────────────
 
