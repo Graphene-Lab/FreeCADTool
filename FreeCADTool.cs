@@ -6,7 +6,8 @@ using AIOrchestrator;
 
 namespace AIOrchestrator.API;
 
-/// <summary>FreeCAD parametric CAD for agent use: model 3D primitives and PartDesign bodies, sketches, pad/pocket/revolve/groove, patterns, fillet/chamfer, booleans, and import/export STEP/STL/3MF/OBJ/IGES. For a complex real-world object that primitives cannot reproduce — an astronaut, a spaceship, a robot arm, a gearbox, a bearing — search the public parts libraries first with get_complex_part instead of building the shape by hand.
+/// <summary>Model 3D CAD parts in FreeCAD: primitives, PartDesign bodies, sketches, pad/pocket/revolve/groove, patterns, fillet/chamfer, booleans, and import/export STEP/STL/3MF/OBJ/IGES.
+/// For a complex real-world object that primitives cannot reproduce — an astronaut, a spaceship, a robot arm, a gearbox, a bearing — search the public parts libraries first with get_complex_part instead of building the shape by hand.
 /// Requires a running FreeCAD instance. Operations act on the active document unless a document name is given — start with document("create", name) or document("open", path).
 /// File paths are Unix-style relative to the workspace root (leading "/", e.g. /part.FCStd, /out/model.step). Saved/exported files are versioned; roll back via GitTool.restore.</summary>
 public partial class FreeCADTool : BaseAgentTool, IFileTool
