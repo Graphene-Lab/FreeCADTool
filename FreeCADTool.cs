@@ -10,6 +10,7 @@ namespace AIOrchestrator.API;
 /// For a complex real-world object that primitives cannot reproduce — an astronaut, a spaceship, a robot arm, a gearbox, a bearing — search the public parts libraries first with get_complex_part instead of building the shape by hand.
 /// Requires a running FreeCAD instance. Operations act on the active document unless a document name is given — start with document("create", name) or document("open", path).
 /// File paths are Unix-style relative to the workspace root (leading "/", e.g. /part.FCStd, /out/model.step). Saved/exported files are versioned; roll back via GitTool.restore.</summary>
+[ToolPurpose(ToolPurpose.Cad)]
 public partial class FreeCADTool : BaseAgentTool, IFileTool
 {
     private readonly FreecadBridge _bridge = new();
