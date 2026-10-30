@@ -1,0 +1,5 @@
+# Keep the installer scripts exactly as they must ship: the .sh is a release asset that Linux
+# and WSL users run with bash, so a CRLF checkout (core.autocrlf=true on Windows) would break it.
+installer/install.sh text eol=lf
+installer/install.ps1 text eol=crlf
+installer/install.bat text eol=crlf

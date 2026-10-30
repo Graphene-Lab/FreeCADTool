@@ -1,5 +1,11 @@
 # FreeCADTool — Parametric CAD for AI Agents
 
+[![License](https://img.shields.io/github/license/Graphene-Lab/FreeCADTool?label=license)](https://github.com/Graphene-Lab/FreeCADTool/blob/main/LICENSE.md)
+[![Download](https://img.shields.io/github/v/release/Graphene-Lab/FreeCADTool?label=download&logo=github)](https://github.com/Graphene-Lab/FreeCADTool/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)](#one-click-installer-whole-local-stack)
+[![Install on Linux](https://img.shields.io/badge/install-Linux-2ea44f?logo=linux&logoColor=white)](https://github.com/Graphene-Lab/FreeCADTool/releases/latest/download/install.sh)
+[![Install on Windows](https://img.shields.io/badge/install-Windows-0078d7?logo=windows&logoColor=white)](https://github.com/Graphene-Lab/FreeCADTool/releases/latest/download/install.bat)
+
 ![FreeCADTool orbiting a parametric turbine impeller built and rendered through a live FreeCAD session](freecad_demo.gif)
 
 **FreeCADTool** is a pure C# / .NET agent plugin that lets an AI agent create and edit real
@@ -44,8 +50,9 @@ plain-text results (or a deterministic `Error: …` string).
 
 ### What you need to install
 
-You install three things. The tool does everything else by itself — you never start FreeCAD,
-start a bridge, or install an add-on by hand.
+**Nothing at all, if you use the [one-click installer](#one-click-installer-whole-local-stack): it
+installs all three parts below for you.** Doing it by hand takes three steps. The tool does
+everything else by itself — you never start FreeCAD, start a bridge, or install an add-on by hand.
 
 1. **FreeCAD** — the CAD engine the tool drives. Install 1.1.x (recommended) or 0.20.x from
    <https://www.freecad.org/downloads>. On Linux: `sudo apt install freecad`.
@@ -73,6 +80,67 @@ start a bridge, or install an add-on by hand.
 - **You are told what is happening, in your language.** Setup progress and any problem appear as
   a normal desktop notification, in your operating system's language (English, Italian, French,
   Spanish, German, Russian; English for any other language).
+
+## One-click installer (whole local stack)
+
+If you want the whole ecosystem ready on your own machine — **AgentBridge + FreeCADTool +
+FreeCAD** — use the installer. It sets everything up in one run and **asks nothing**: no
+questions, no GitHub sign-in, no configuration file to edit. It installs FreeCAD when it is
+missing, downloads AgentBridge, turns the FreeCADTool plugin on by default, installs the chat
+panel inside FreeCAD, and creates an **AI FreeCAD** icon.
+
+| Your OS | Download | How to start it |
+|---|---|---|
+| **Windows** | [install.bat](https://github.com/Graphene-Lab/FreeCADTool/releases/latest/download/install.bat) | Double-click it. |
+| **Linux / WSL** | [install.sh](https://github.com/Graphene-Lab/FreeCADTool/releases/latest/download/install.sh) | `bash install.sh` |
+
+```bat
+:: Windows (double-click is enough; from a shell:)
+install.bat
+```
+
+```bash
+# Linux / WSL
+bash install.sh
+```
+
+**Then click the “AI FreeCAD” icon** (desktop, Start menu, or the application menu). One click
+starts **AgentBridge and FreeCAD**, opens a document, and opens the chat panel ready for a
+prompt — no other window, no other step. Type something like *“build a 20x10x5 box and export
+it as STEP”* and the agent models it in the FreeCAD window you are looking at.
+
+What the installer does, in one run:
+
+1. **FreeCAD** — installs it when it is missing (winget on Windows; apt / dnf / pacman on Linux
+   and WSL) and finds it wherever it lives.
+2. **AgentBridge** — downloads the public release and unpacks it under your user folder
+   (`%LOCALAPPDATA%\freecad-tool-stack` on Windows, `~/freecad-tool-stack` elsewhere).
+3. **FreeCADTool** — downloads the plugin from this repository's latest release into
+   AgentBridge's `Tools/FreeCADTool/`, so the agent can already model when it starts.
+4. **AgentBridge Chat** — installs the chat workbench into FreeCAD's `Mod` folder, wired for
+   *reverse start* (`agentbridge.json`): opening the panel starts AgentBridge itself.
+5. **The icon** — writes the launcher and the “AI FreeCAD” shortcut, plus a default document to
+   open on.
+
+Re-running the installer is safe: it continues where it stopped and reuses what is already
+there (it also repairs a half-finished install). Everything it creates stays inside your user
+profile — no system-wide files, no services, no registry changes apart from the FreeCAD package
+itself and the shortcuts. If it printed a problem, fix what it lists and run it again.
+
+The installer says at the end whether an AI provider still has to be chosen: open AgentBridge's
+settings once and pick provider and model, or re-run the installer with `LLM_BASE_URL`, `LLM_KEY`
+and `LLM_MODEL` set (every knob the installer accepts is listed at the top of `install.ps1` and
+`install.sh`).
+
+> **macOS** is not covered by the installer yet: install FreeCAD from
+> <https://www.freecad.org/downloads>, use the [manual steps](#what-you-need-to-install) and put
+> the release zip in `Tools/FreeCADTool/`.
+
+### Free support, 24/7
+
+Setup help and bug reports are free, any day and any hour: just open an issue at
+<https://github.com/Graphene-Lab/FreeCADTool/issues> and describe what happened (pasting the
+installer's output is enough). There is no paid support tier and no account to create.
 
 ### Why the auto-started FreeCAD is headless (and how to watch the work)
 
@@ -161,7 +229,8 @@ FreeCAD GUI + AgentBridge Chat dock  ──HTTP (SSE)──▶  AgentBridge  ─
   workbench-manipulator API — the same mechanism the bundled BIM workbench uses). Both are
   **disabled while no document is open**, exactly like FreeCAD's own drawing commands: a chat that
   asks the agent to change a project means nothing before there is a project. Nothing opens by
-  itself at startup.
+  itself at startup — unless the installer asked for it with `open_chat_on_start` in
+  `agentbridge.json`, which is what makes the “AI FreeCAD” icon land on an open prompt.
 - **Reopen any time.** If you close the dock, open it again from the same menu entry or button:
   the conversation, and the AgentBridge session behind it, are kept.
 - **All OSes.** Qt is imported through a small shim that works on FreeCAD 1.x (PySide6) and 0.20.x
@@ -345,6 +414,10 @@ dotnet build FreeCADTool.csproj
 dotnet run --project FreeCADTool.Harness   # end-to-end checks against the live bridge
 ```
 
+The one-click installer lives in [`installer/`](installer): `install.ps1` + `install.bat` for
+Windows, `install.sh` for Linux and WSL. It is plain PowerShell / Bash, needs no build, and is
+meant to be re-runnable.
+
 The harness runs the full CAD-core surface (primitives, booleans, sketch + pad/pocket/revolve,
 patterns, fillet/chamfer, transform, edit, undo/redo, export/import) and prints one line per
 check, ending with a pass/fail total.
@@ -354,7 +427,8 @@ check, ending with a pass/fail total.
 Push a tag `v*` (date version, e.g. `v1.26.09.15`) — the two workflows publish both channels:
 
 - `plugin-release.yml` → GitHub Release with the self-contained `FreeCADTool-<version>.zip`,
-  which the hosts (AgentBridge, AIOffice) install into `Tools/FreeCADTool/`.
+  which the hosts (AgentBridge, AIOffice) install into `Tools/FreeCADTool/`, plus the three
+  one-click installers (`install.bat`, `install.ps1`, `install.sh`) that the README badges link to.
 - `publish.yml` → NuGet package `Graphene.FreeCADTool` (the repository needs the
   `NUGET_API_KEY` secret — same key as the other Graphene-Lab repos).
 

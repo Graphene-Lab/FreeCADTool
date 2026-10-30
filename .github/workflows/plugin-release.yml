@@ -15,7 +15,10 @@
 #    - plus the UNIQUE dependencies' runtimes/ natives (per-RID native libraries
 #      like OwnAudioSharp's ownaudio_ffi): the plugin needs them at runtime and
 #      deploys the matching one into the host app base;
-#    - creates a GitHub Release with the self-contained <Tool>-<version>.zip.
+#    - creates a GitHub Release with the self-contained <Tool>-<version>.zip;
+#    - attaches installer/install.bat, installer/install.ps1 and installer/install.sh
+#      to that release, which is where the README download badges point
+#      (/releases/latest/download/install.bat|install.sh).
 #
 #  Hosts (AgentBridge, AIOffice) install/update plugins from this zip into
 #  Tools/<Plugin>/. The repo MUST be PUBLIC: hosts download anonymously.
@@ -160,12 +163,16 @@ jobs:
           ZIP="$TOOL-$VERSION.zip"
           (cd /tmp/stage && python3 -m zipfile -c "$GITHUB_WORKSPACE/$ZIP" "$TOOL")
           ls -lh "$ZIP"
+          # The one-click installers travel with every release so that the README badges
+          # (.../releases/latest/download/install.bat|install.sh) always resolve to THIS version.
+          INSTALLERS="installer/install.bat installer/install.ps1 installer/install.sh"
+          ls -l $INSTALLERS
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             # Same-day re-release: refresh the asset instead of failing on the existing tag.
-            gh release upload "v$VERSION" "$ZIP" --clobber
-            gh release edit "v$VERSION" --notes "Self-contained plugin zip for host deployment (deps minus the AIOrchestrator graph)."
+            gh release upload "v$VERSION" "$ZIP" $INSTALLERS --clobber
+            gh release edit "v$VERSION" --notes "Self-contained plugin zip for host deployment (deps minus the AIOrchestrator graph). The one-click installers (install.bat for Windows, install.sh for Linux/WSL) set up AgentBridge + this plugin + FreeCAD in a single run."
           else
-            gh release create "v$VERSION" "$ZIP" \
+            gh release create "v$VERSION" "$ZIP" $INSTALLERS \
               --title "v$VERSION" \
-              --notes "Self-contained plugin zip for host deployment (deps minus the AIOrchestrator graph)."
+              --notes "Self-contained plugin zip for host deployment (deps minus the AIOrchestrator graph). The one-click installers (install.bat for Windows, install.sh for Linux/WSL) set up AgentBridge + this plugin + FreeCAD in a single run."
           fi

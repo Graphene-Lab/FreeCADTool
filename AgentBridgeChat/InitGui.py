@@ -3,10 +3,12 @@
 # GUI instance so the agent's FreeCADTool edits the very window you are looking at
 # (same-instance driving).
 #
-# WHERE IT LIVES, AND WHY. Nothing opens by itself: the chat is a command, offered
-# from FreeCAD's own **Tools** menu and as a button in the standard **File** toolbar
-# next to New/Open/Save — in every workbench, through the manipulator API FreeCAD
-# provides for exactly this (see _ChatCommandManipulator). Like every FreeCAD command
+# WHERE IT LIVES, AND WHY. The chat is a command, offered from FreeCAD's own **Tools**
+# menu and as a button in the standard **File** toolbar next to New/Open/Save — in every
+# workbench, through the manipulator API FreeCAD provides for exactly this (see
+# _ChatCommandManipulator). Nothing opens by itself unless the installer asks for it in
+# agentbridge.json ("open_chat_on_start": the one-click launcher lands on an open prompt).
+# Like every FreeCAD command
 # that acts on a drawing, it is **disabled while no document is open**: a chat that
 # asks the agent to change a project means nothing before there is a project, and the
 # start page is where the user decides which project that is.
@@ -304,9 +306,37 @@ def _load():
             _start_bridge()
 
 
+    _opened_on_start = False
+
+
+    def _auto_open_on_start(tries=0):
+        """Open the panel by itself when the installer asked for it, so a single desktop icon
+        leads straight to a prompt on the document that was just opened (AgentBridge itself is
+        started by _open_chat). Off unless agentbridge.json sets open_chat_on_start: a plain
+        FreeCAD installation keeps the menu entry and the chat opens only when asked for."""
+        nonlocal _opened_on_start
+        if _opened_on_start:
+            return
+        if not _host_config().get("open_chat_on_start", False):
+            return
+        if FreeCAD.GuiUp and _has_document():
+            _opened_on_start = True
+            _open_chat()
+            return
+        # Nothing to chat about yet (bare launch, or the document is still loading): the chat needs
+        # an open document, so wait for one instead of giving up.
+        if tries < 60:
+            try:
+                from _qt import QtCore
+                QtCore.QTimer.singleShot(1000, lambda: _auto_open_on_start(tries + 1))
+            except Exception:
+                pass
+
+
     try:
         from _qt import QtCore
         QtCore.QTimer.singleShot(800, lambda: _apply_to_current_workbench(0))
+        QtCore.QTimer.singleShot(1200, lambda: _auto_open_on_start(0))
     except Exception:
         pass
 
