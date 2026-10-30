@@ -1,7 +1,8 @@
-# FreeCADTool — Parametric CAD for AI Agents
+# FreeCADTool — Automate FreeCAD with AI (parametric CAD for AI agents)
 
 [![License](https://img.shields.io/github/license/Graphene-Lab/FreeCADTool?label=license)](https://github.com/Graphene-Lab/FreeCADTool/blob/main/LICENSE.md)
 [![Download](https://img.shields.io/github/v/release/Graphene-Lab/FreeCADTool?label=download&logo=github)](https://github.com/Graphene-Lab/FreeCADTool/releases/latest)
+[![Stars](https://img.shields.io/github/stars/Graphene-Lab/FreeCADTool?label=stars&logo=github)](https://github.com/Graphene-Lab/FreeCADTool/stargazers)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)](#one-click-installer-whole-local-stack)
 [![Install on Linux](https://img.shields.io/badge/install-Linux-2ea44f?logo=linux&logoColor=white)](https://github.com/Graphene-Lab/FreeCADTool/releases/latest/download/install.sh)
 [![Install on Windows](https://img.shields.io/badge/install-Windows-0078d7?logo=windows&logoColor=white)](https://github.com/Graphene-Lab/FreeCADTool/releases/latest/download/install.bat)
@@ -15,9 +16,26 @@ mirror patterns, fillet / chamfer, boolean fuse / cut / common, and import / exp
 standard CAD formats (STEP, STL, 3MF, OBJ, IGES). It is the C# counterpart of the
 `freecad-AI` MCP server, reshaped into one structured, deterministic agent tool.
 
+Ask for a part in words — *"a 60 mm flange with six M5 holes on a 40 mm bolt circle"* — and the model appears as real FreeCAD features in the document on screen.
+
 The animation above is a turbine impeller — a 12-blade rotor with a revolved hub, top cap,
 mounting flange, outer shroud, central bore and a bolt circle — built as a single solid and
 rendered by orbiting the FreeCAD camera. Every frame is a real FreeCAD render, not a mockup.
+
+## Start here: what people look for
+
+| What you want | How FreeCADTool answers it |
+|---|---|
+| **Automate FreeCAD with AI** | One icon starts the assistant and FreeCAD together; you describe the part in words and the agent builds it in the open document. [One-click installer →](#one-click-installer-whole-local-stack) |
+| **Use ChatGPT, Claude, Gemini, Copilot or a local model** | FreeCADTool plugs into [AgentBridge](https://github.com/Graphene-Lab), which talks to any OpenAI-compatible endpoint: cloud APIs (OpenAI, Azure OpenAI, OpenRouter, Groq) or a local server (Ollama, LM Studio, vLLM). Whichever model the host is configured with is the model that drives FreeCAD — the plugin itself needs no API key and no Python. |
+| **A "FreeCAD MCP server"** | FreeCADTool is the C# descendant of the `freecad-AI` MCP server: same local bridge on `127.0.0.1:9876`, but the agent calls typed methods instead of generating Python for every step (see [what was reshaped](#what-was-reshaped-from-freecad-ai)). |
+| **Real parametric CAD, not throw-away scripts** | Every call edits a live FreeCAD document: PartDesign bodies and sketches, pad / pocket / revolve / groove / hole / loft / sweep, patterns, fillet / chamfer, booleans — with undo, save and re-open. |
+| **STEP / STL / 3MF for printing, CAM or another CAD** | `export` writes STEP, STL, 3MF, OBJ, IGES and BREP from the same document. |
+| **Something that runs on Windows, Linux or macOS** | One plugin, one installer per OS, FreeCAD 0.20.x and 1.x: [Windows](#one-click-installer-whole-local-stack) · [Linux / WSL](#one-click-installer-whole-local-stack) · [macOS](#what-you-need-to-install). |
+| **A free, self-hosted alternative to paid CAD co-pilots** | AGPL-3.0 and self-hosted: the model runs where you point it and the CAD work happens on your machine. |
+
+New here? Read [what it is (and is not)](#what-it-is-and-is-not), then run the
+[installer](#one-click-installer-whole-local-stack) and ask for a box.
 
 ## What it is (and is not)
 
@@ -434,6 +452,19 @@ Push a tag `v*` (date version, e.g. `v1.26.09.15`) — the two workflows publish
 
 A plain push is a code-only sync and publishes nothing. The repository must stay **public**
 (the hosts download the release zip anonymously).
+
+## Search keywords
+
+Also known as: AI CAD for FreeCAD · FreeCAD AI assistant · ChatGPT for FreeCAD · Claude for
+FreeCAD · FreeCAD MCP server · FreeCAD agent plugin · LLM-driven CAD automation · parametric CAD
+automation · PartDesign automation · FreeCAD agent integration · generate FreeCAD models without
+writing Python.
+
+Engine and formats: FreeCAD 0.20.x and 1.x · Part · PartDesign · Sketcher · STEP · STL · 3MF ·
+OBJ · IGES · BREP · 3D printing · CNC / CAM export.
+
+Stack and platforms: C# · .NET 10 · Windows · Linux · WSL · macOS · AgentBridge and AIOffice hosts ·
+local or cloud LLM.
 
 ## License
 
