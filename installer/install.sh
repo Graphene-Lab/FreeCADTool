@@ -217,7 +217,8 @@ with io.open(__import__('os').path.join(__import__('os').path.dirname(
 PY
   "$FC_CMD" "$probe/moddir.py" >/dev/null 2>&1 || true
   if [ -s "$probe/moddir.txt" ]; then
-	mod_dir="$(cat "$probe/moddir.txt")/Mod"
+	user_data="$(cat "$probe/moddir.txt")"
+	mod_dir="${user_data%/}/Mod"
   fi
   rm -rf "$probe"
 fi
@@ -293,7 +294,7 @@ fi
 
 # Then FreeCAD, once, on the default document: a document must be open for the chat to be
 # offered, and the workbench opens the dock itself (open_chat_on_start in agentbridge.json).
-if ! pgrep -x -f "\$FC" >/dev/null 2>&1; then
+if ! pgrep -f "\$FC" >/dev/null 2>&1; then
   if [ -f "\$DOC" ]; then
 	setsid "\$FC" "\$DOC" >/dev/null 2>&1 < /dev/null &
   else
