@@ -453,6 +453,54 @@ Push a tag `v*` (date version, e.g. `v1.26.09.15`) — the two workflows publish
 A plain push is a code-only sync and publishes nothing. The repository must stay **public**
 (the hosts download the release zip anonymously).
 
+## FAQ
+
+### How do I automate FreeCAD with AI?
+
+Run the [one-click installer](#one-click-installer-whole-local-stack), then click the **AI FreeCAD**
+icon. It starts a local agent host (AgentBridge), opens FreeCAD on a scratch document and docks the
+chat panel inside FreeCAD, so you type "a 40 mm pulley with a 5 mm keyway" and the model appears in
+your tree. Nothing to configure unless you want to point it at your own LLM provider.
+
+### Is this a FreeCAD MCP server?
+
+It is the C# descendant of the `freecad-AI` MCP server and keeps the same local bridge on
+`127.0.0.1:9876`, so the architectural idea is identical: an external agent drives a live FreeCAD
+session. What changes is the contract - the agent calls typed methods (sketch, pad, pocket, revolve,
+pattern, fillet, boolean, export) instead of synthesising a Python snippet for every step, which is
+what makes the result predictable and repeatable.
+
+### Can I use ChatGPT, Claude, Copilot, Gemini or a local model?
+
+Yes. FreeCADTool does not talk to a vendor API itself; the host exposes any OpenAI-compatible
+endpoint (`providers.json`), so cloud models (ChatGPT, Claude, Gemini, GitHub Copilot) and local
+runtimes (Ollama, LM Studio, llama.cpp, vLLM) are interchangeable - switch provider without touching
+the tool. With a local model nothing leaves the machine.
+
+### Does it work offline?
+
+The whole stack is local: FreeCAD, the agent host and the CAD tool all run on your machine, and the
+bridge is bound to `127.0.0.1`. Only the LLM inference has to reach a cloud provider, and that goes
+away if you run a local model.
+
+### Do I have to know Python or FreeCAD scripting?
+
+No. The installer needs no Python, the tool is C#/.NET, and you describe the part in words. Every
+operation the agent runs becomes a normal FreeCAD feature, so you can still inspect, edit and re-run
+it by hand in the GUI.
+
+### Which platforms are supported - Windows, Linux, WSL, macOS?
+
+Windows (`install.bat` / `install.ps1`, FreeCAD installed with winget if missing) and Linux or WSL
+(`install.sh`, FreeCAD installed with apt/dnf/pacman if missing). The plugin itself is plain .NET and
+runs wherever AgentBridge and FreeCAD run, macOS included; only the one-click wrappers are per-OS
+today.
+
+### Is it free?
+
+Yes - AGPL-3.0, self-hosted, no account, no telemetry. Support is free 24/7 through
+[GitHub issues](https://github.com/Graphene-Lab/FreeCADTool/issues).
+
 ## Search keywords
 
 Also known as: AI CAD for FreeCAD · FreeCAD AI assistant · ChatGPT for FreeCAD · Claude for
