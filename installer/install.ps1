@@ -210,6 +210,9 @@ if ($LlmKey -and -not (Test-Path (Join-Path $cfg 'providers.json'))) {
 		model   = if ($LlmModel) { $LlmModel } else { 'gpt-4o-mini' }
 	}) }
 	$providers | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $cfg 'providers.json') -Encoding UTF8
+	# Set-Content -Encoding UTF8 writes a BOM in Windows PowerShell; rewrite it without one.
+	$provText = [System.IO.File]::ReadAllText((Join-Path $cfg 'providers.json'))
+	[System.IO.File]::WriteAllText((Join-Path $cfg 'providers.json'), $provText, (New-Object System.Text.UTF8Encoding($false)))
 } elseif (Test-Path (Join-Path $cfg 'providers.json')) {
 	Log "Keeping the existing AgentBridge providers.json"
 }
@@ -270,7 +273,11 @@ if (Test-Path (Join-Path $chatSrc 'InitGui.py')) {
 			autostart           = $true
 			open_chat_on_start  = $true
 		}
-		$hostCfg | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $chatTarget 'agentbridge.json') -Encoding UTF8
+		# Written BOM-free on purpose: the chat add-on parses it with Python's json on a plain
+		# UTF-8 read, and a BOM there silently dropped exe/autostart/open_chat_on_start.
+		$cfgPath = Join-Path $chatTarget 'agentbridge.json'
+		$cfgText = $hostCfg | ConvertTo-Json -Depth 4
+		[System.IO.File]::WriteAllText($cfgPath, $cfgText, (New-Object System.Text.UTF8Encoding($false)))
 		$chatModOk = $true
 		Log "Chat workbench installed in $chatTarget"
 	} catch {

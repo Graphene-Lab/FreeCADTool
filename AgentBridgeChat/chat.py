@@ -48,8 +48,10 @@ def _host_config():
     this session, and the installer records it here for the sessions where the environment was
     lost (a FreeCAD started from a shell that predates the host)."""
     try:
+        # utf-8-sig: a Windows installer may have written the file with a BOM, and a plain
+        # "utf-8" read then fails on it — which silently dropped the endpoint and the exe.
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), _CONFIG_NAME),
-                  "r", encoding="utf-8") as fh:
+                  "r", encoding="utf-8-sig") as fh:
             return json.load(fh)
     except Exception:
         return {}

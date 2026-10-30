@@ -116,7 +116,10 @@ def _load():
         start, and the chat simply talks to whatever is already listening."""
         try:
             import json
-            with open(os.path.join(_mod_dir, "agentbridge.json"), "r", encoding="utf-8") as fh:
+            # utf-8-sig: Windows PowerShell wrote this file with a BOM in earlier installer
+            # versions, and json.load on "utf-8" rejects it — which silently dropped the exe
+            # and the open_chat_on_start request.
+            with open(os.path.join(_mod_dir, "agentbridge.json"), "r", encoding="utf-8-sig") as fh:
                 return json.load(fh)
         except Exception:
             return {}
@@ -161,6 +164,7 @@ def _load():
         try:
             from chat import show_chat_dock
             show_chat_dock()
+            FreeCAD.Console.PrintMessage("AgentBridge chat: chat panel opened.\n")
         except Exception as exc:
             FreeCAD.Console.PrintWarning("AgentBridge chat: could not open chat (%s).\n" % exc)
 
@@ -321,6 +325,7 @@ def _load():
             return
         if FreeCAD.GuiUp and _has_document():
             _opened_on_start = True
+            FreeCAD.Console.PrintMessage("AgentBridge chat: open_chat_on_start is set, opening the panel.\n")
             _open_chat()
             return
         # Nothing to chat about yet (bare launch, or the document is still loading): the chat needs
