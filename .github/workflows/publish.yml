@@ -40,7 +40,7 @@ jobs:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           if [ -z "$NUGET_API_KEY" ]; then
-            echo "::error::NuGet login failed (trusted publishing policy mismatch, or id-token: write missing) — the package was NOT published. Add the secret (Settings -> Secrets and variables -> Actions, same key as the other Graphene-Lab repos) and re-run this job."
+            echo "::error::NuGet login failed (trusted publishing policy mismatch, or id-token: write missing) — the package was NOT published. Check the trusted-publishing policy on nuget.org (repository name, workflow file, environment) or its 7-day activation, then re-run this job."
             exit 1
           fi
           dotnet nuget push ./out/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
